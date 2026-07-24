@@ -62,9 +62,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y squashfs-tools-ng squashfs-tools
 
-      - name: Install start-cli
+      - name: Install start-cli (v1.0.3 to keep alerts field compatibility for pre-beta.10 StartOS)
         run: |
-          curl -fsSL https://start9.com/start-cli/install.sh | sh
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL "https://github.com/Start9Labs/start-technologies/releases/download/start-cli%2Fv1.0.3/start-cli_x86_64-linux" -o "$HOME/.local/bin/start-cli"
+          chmod +x "$HOME/.local/bin/start-cli"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Build s9pk
