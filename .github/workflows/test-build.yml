@@ -1,9 +1,18 @@
 name: Test build (s9pk artifact)
 
+# Builds a sideloadable blisspoint.s9pk and uploads it as a workflow ARTIFACT —
+# no public GitHub Release, no git tag. For testing this branch before merge.
+# Download the artifact from the run's summary page, unzip, sideload in StartOS.
+# The version is read from startos/manifest (the dockerTag), so it always matches.
+
 on:
   push:
     branches: [main, feature/rename-to-blisspoint]
   workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   docker:
@@ -22,13 +31,17 @@ jobs:
         run: |
           v=$(grep -oP "blisspoint:\K[0-9]+\.[0-9]+\.[0-9]+" startos/manifest/index.ts | head -1)
           echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Building version $v"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -49,47 +62,55 @@ jobs:
     name: Build s9pk & upload artifact
     runs-on: ubuntu-latest
     needs: docker
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v5
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          node-version: '24'
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y squashfs-tools-ng squashfs-tools
+      - name: Install squashfs-tools-ng
+        run: sudo apt-get update && sudo apt-get install -y squashfs-tools-ng
 
-      - name: Install start-cli (v1.0.3 to keep alerts field compatibility for pre-beta.10 StartOS)
+      - name: Install start-cli (v0.4.0-beta.9 matches StartOS 0.4.0 for alerts manifest field compatibility)
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -fsSL "https://github.com/Start9Labs/start-technologies/releases/download/start-cli%2Fv1.0.3/start-cli_x86_64-linux" -o "$HOME/.local/bin/start-cli"
+          curl -fsSL "https://github.com/Start9Labs/start-technologies/releases/download/v0.4.0-beta.9/start-cli_x86_64-linux" -o "$HOME/.local/bin/start-cli"
           chmod +x "$HOME/.local/bin/start-cli"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Build s9pk
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          
-          # Initialize workspace in parent directory to satisfy start-cli requirements
-          cd ..
-          start-cli s9pk init-workspace .
-          sed -i 's|https://dev-vm.local|http://127.0.0.1|g' .startos/config.yaml
-          
-          cd hashboard
-          
-          # Install pnpm and build SDK
-          npm install -g pnpm
-          pnpm --prefix sdk-build install
-          pnpm --prefix sdk-build run build
-          
-          # Use Makefile to pack, which now correctly handles assets
-          make PKG=blisspoint.s9pk
+      - name: Install sdk-build deps
+        run: npm --prefix sdk-build ci
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Build SDK JavaScript
+        run: cd sdk-build && npm run build
+
+      - name: Generate developer key
+        run: start-cli init-key
+
+      - name: Pack s9pk
+        run: |
+          start-cli s9pk pack \
+            --javascript "$GITHUB_WORKSPACE/sdk-build/javascript" \
+            --icon startos/icon.png \
+            --instructions startos/instructions.md \
+            --license LICENSE \
+            --no-assets \
+            -o blisspoint.s9pk
+
+      - name: Inspect manifest
+        run: start-cli s9pk inspect blisspoint.s9pk manifest
+
+      - name: Upload s9pk artifact
+        uses: actions/upload-artifact@v5
         with:
-          name: blisspoint-test-s9pk
+          name: blisspoint-${{ needs.docker.outputs.version }}-s9pk
           path: blisspoint.s9pk
+          retention-days: 14
+          if-no-files-found: error

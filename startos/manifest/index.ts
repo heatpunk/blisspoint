@@ -18,9 +18,7 @@ export const manifest = setupManifest({
     },
   },
   alerts: {
-    install: {
-      en_US: "Please ensure any older Blisspoint services are completely uninstalled before installing this version."
-    },
+    install: null,
     update: null,
     uninstall: null,
     restore: null,
