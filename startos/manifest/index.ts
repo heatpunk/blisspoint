@@ -18,7 +18,9 @@ export const manifest = setupManifest({
     },
   },
   alerts: {
-    install: null,
+    install: {
+      en_US: "Please ensure any older Hashboard or Blisspoint services are completely uninstalled before installing this version."
+    },
     update: null,
     uninstall: null,
     restore: null,
