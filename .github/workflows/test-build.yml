@@ -84,7 +84,7 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install sdk-build deps
-        run: npm --prefix sdk-build ci
+        run: npm --prefix sdk-build install
 
       - name: Build SDK JavaScript
         run: cd sdk-build && npm run build
