@@ -83,6 +83,11 @@ jobs:
           curl -fsSL https://start9.com/start-cli/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      - name: Initialize packaging workspace
+        run: |
+          cd "$GITHUB_WORKSPACE/.."
+          "$HOME/.local/bin/start-cli" init-workspace
+
       - name: Install sdk-build deps
         run: npm --prefix sdk-build install
 
