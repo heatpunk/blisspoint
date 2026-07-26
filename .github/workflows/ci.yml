@@ -24,8 +24,8 @@ jobs:
       - run: npm test
       - run: npm run build
 
-  sdk-check:
-    name: Type-check StartOS SDK
+  startos-check:
+    name: Check StartOS SDK 2.0.x
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -33,11 +33,16 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: sdk-build/package-lock.json
 
-      - run: npm --prefix sdk-build ci
-      - run: cd sdk-build && npm run check
+      - name: Install start-cli
+        run: |
+          npm install -g @start9labs/start-cli
+
+      - name: Check StartOS manifest & package
+        run: |
+          cd startos
+          npm ci
+          npm run build
 
   proxy-rs:
     name: Build & test proxy-rs
