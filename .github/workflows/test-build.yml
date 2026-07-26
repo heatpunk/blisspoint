@@ -95,7 +95,9 @@ jobs:
         run: cd sdk-build && npm run build
 
       - name: Generate developer key
-        run: start-cli init-key
+        run: |
+          mkdir -p ~/.startos
+          openssl genpkey -algorithm Ed25519 -out ~/.startos/id.key.pem
 
       - name: Pack s9pk
         run: |
