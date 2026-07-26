@@ -14,8 +14,8 @@ containing the `blisspoint/` directory from here. On your Umbrel:
 2. Copy `umbrel/blisspoint/` into the fork's root as `blisspoint/`.
 3. Pin the image by digest in `docker-compose.yml` (required by Umbrel):
    ```bash
-   docker buildx imagetools inspect ghcr.io/heatpunk/blisspoint:0.5.2
-   # then: image: ghcr.io/heatpunk/blisspoint:0.5.2@sha256:<digest>
+   docker buildx imagetools inspect ghcr.io/heatpunk/blisspoint:0.5.3
+   # then: image: ghcr.io/heatpunk/blisspoint:0.5.3@sha256:<digest>
    ```
 4. Add 3–5 gallery screenshots (1600×1000 PNG) and list them in `umbrel-app.yml`.
 5. Open a PR against `getumbrel/umbrel-apps` following their template.
