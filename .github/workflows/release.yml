@@ -103,33 +103,41 @@ jobs:
           curl -fsSL https://start9.com/start-cli/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      - name: Initialize packaging workspace
+        run: |
+          cd "$GITHUB_WORKSPACE/.."
+          "$HOME/.local/bin/start-cli" s9pk init-workspace
+
       - name: Install sdk-build deps
-        run: npm --prefix sdk-build ci
+        run: npm --prefix sdk-build install
 
       - name: Build SDK JavaScript
         run: cd sdk-build && npm run build
 
       - name: Generate developer key
-        run: start-cli init-key
+        run: |
+          mkdir -p ~/.startos
+          openssl genpkey -algorithm Ed25519 -out ~/.startos/id.key.pem
 
       - name: Pack s9pk
         run: |
+          echo "127.0.0.1 dev-vm.local" | sudo tee -a /etc/hosts
           start-cli s9pk pack \
             --javascript "$GITHUB_WORKSPACE/sdk-build/javascript" \
             --icon startos/icon.png \
             --instructions startos/instructions.md \
             --license LICENSE \
             --no-assets \
-            -o hashboard.s9pk
+            -o blisspoint.s9pk
 
       - name: Inspect manifest
-        run: start-cli s9pk inspect hashboard.s9pk manifest
+        run: start-cli s9pk inspect blisspoint.s9pk manifest
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.version }}
           name: v${{ steps.ver.outputs.version }}
-          files: hashboard.s9pk
+          files: blisspoint.s9pk
           generate_release_notes: true
           fail_on_unmatched_files: true

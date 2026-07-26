@@ -3,19 +3,19 @@ import { sdk } from './sdk'
 import { uiPort } from './utils'
 
 export const main = sdk.setupMain(async ({ effects }) => {
-  console.info(i18n('Starting Hashboard'))
+  console.info(i18n('Starting Blisspoint'))
 
   return sdk.Daemons.of(effects).addDaemon('primary', {
     subcontainer: await sdk.SubContainer.of(
       effects,
-      { imageId: 'hashboard' },
+      { imageId: 'blisspoint' },
       sdk.Mounts.of().mountVolume({
         volumeId: 'main',
         subpath: null,
         mountpoint: '/data',
         readonly: false,
       }),
-      'hashboard-sub',
+      'blisspoint-sub',
     ),
     exec: {
       command: ['sh', '-c', 'proxy-rs & node server/serve.cjs'],

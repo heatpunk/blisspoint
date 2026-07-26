@@ -36,19 +36,19 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    url = entry.data["hashboard_url"].rstrip("/")
+    url = entry.data["blisspoint_url"].rstrip("/")
     miner_ip = entry.data["miner_ip"]
 
-    coordinator = HashboardCoordinator(hass, url, miner_ip)
+    coordinator = BlisspointCoordinator(hass, url, miner_ip)
     await coordinator.async_config_entry_first_refresh()
 
     async_add_entities(
-        HashboardSensor(coordinator, miner_ip, key, name, unit, dev_class, state_class)
+        BlisspointSensor(coordinator, miner_ip, key, name, unit, dev_class, state_class)
         for key, name, unit, dev_class, state_class in SENSORS
     )
 
 
-class HashboardCoordinator(DataUpdateCoordinator):
+class BlisspointCoordinator(DataUpdateCoordinator):
     def __init__(self, hass: HomeAssistant, url: str, miner_ip: str) -> None:
         super().__init__(
             hass,
@@ -73,10 +73,10 @@ class HashboardCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Error fetching {endpoint}: {err}") from err
 
 
-class HashboardSensor(CoordinatorEntity, SensorEntity):
+class BlisspointSensor(CoordinatorEntity, SensorEntity):
     def __init__(
         self,
-        coordinator: HashboardCoordinator,
+        coordinator: BlisspointCoordinator,
         miner_ip: str,
         key: str,
         name: str,
@@ -86,11 +86,11 @@ class HashboardSensor(CoordinatorEntity, SensorEntity):
     ) -> None:
         super().__init__(coordinator)
         self._key = key
-        self._attr_name = f"Hashboard {name} ({miner_ip})"
+        self._attr_name = f"Blisspoint {name} ({miner_ip})"
         self._attr_native_unit_of_measurement = unit
         self._attr_device_class = device_class
         self._attr_state_class = state_class
-        self._attr_unique_id = f"hashboard_{miner_ip}_{key}"
+        self._attr_unique_id = f"blisspoint_{miner_ip}_{key}"
 
     @property
     def native_value(self):

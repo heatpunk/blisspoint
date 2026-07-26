@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 import type { Miner, MinerConfig } from "@/lib/types";
 import { fetchMinerStats, scanLAN, setMinerPaused, setMinerPowerTarget } from "@/lib/minerApi";
 
-const STORAGE_KEY = "hashboard.state.v2";
+const STORAGE_KEY = "blisspoint.state.v2";
 
 const seed = (): Miner[] => [];
 

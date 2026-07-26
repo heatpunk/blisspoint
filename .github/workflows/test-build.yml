@@ -1,13 +1,13 @@
 name: Test build (s9pk artifact)
 
-# Builds a sideloadable hashboard.s9pk and uploads it as a workflow ARTIFACT —
+# Builds a sideloadable blisspoint.s9pk and uploads it as a workflow ARTIFACT —
 # no public GitHub Release, no git tag. For testing this branch before merge.
 # Download the artifact from the run's summary page, unzip, sideload in StartOS.
 # The version is read from startos/manifest (the dockerTag), so it always matches.
 
 on:
   push:
-    branches: [claude/asic-rs-proxy]
+    branches: [main, feature/rename-to-blisspoint]
   workflow_dispatch:
 
 env:
@@ -29,7 +29,7 @@ jobs:
       - name: Resolve version from manifest
         id: ver
         run: |
-          v=$(grep -oP "hashboard:\K[0-9]+\.[0-9]+\.[0-9]+" startos/manifest/index.ts | head -1)
+          v=$(grep -oP "blisspoint:\K[0-9]+\.[0-9]+\.[0-9]+" startos/manifest/index.ts | head -1)
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "Building version $v"
 
@@ -52,7 +52,9 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/blisspoint:${{ steps.ver.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/blisspoint:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -81,32 +83,40 @@ jobs:
           curl -fsSL https://start9.com/start-cli/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      - name: Initialize packaging workspace
+        run: |
+          cd "$GITHUB_WORKSPACE/.."
+          "$HOME/.local/bin/start-cli" s9pk init-workspace
+
       - name: Install sdk-build deps
-        run: npm --prefix sdk-build ci
+        run: npm --prefix sdk-build install
 
       - name: Build SDK JavaScript
         run: cd sdk-build && npm run build
 
       - name: Generate developer key
-        run: start-cli init-key
+        run: |
+          mkdir -p ~/.startos
+          openssl genpkey -algorithm Ed25519 -out ~/.startos/id.key.pem
 
       - name: Pack s9pk
         run: |
+          echo "127.0.0.1 dev-vm.local" | sudo tee -a /etc/hosts
           start-cli s9pk pack \
             --javascript "$GITHUB_WORKSPACE/sdk-build/javascript" \
             --icon startos/icon.png \
             --instructions startos/instructions.md \
             --license LICENSE \
             --no-assets \
-            -o hashboard.s9pk
+            -o blisspoint.s9pk
 
       - name: Inspect manifest
-        run: start-cli s9pk inspect hashboard.s9pk manifest
+        run: start-cli s9pk inspect blisspoint.s9pk manifest
 
       - name: Upload s9pk artifact
         uses: actions/upload-artifact@v5
         with:
-          name: hashboard-${{ needs.docker.outputs.version }}-s9pk
-          path: hashboard.s9pk
+          name: blisspoint-${{ needs.docker.outputs.version }}-s9pk
+          path: blisspoint.s9pk
           retention-days: 14
           if-no-files-found: error

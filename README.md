@@ -1,14 +1,14 @@
-# Hashboard
+# Blisspoint
 
 > A dead-simple UI for running a Bitcoin ASIC miner as a space heater — built so anyone in the house can use it.
 
 <p align="center">
-  <img src="docs/screenshots/hero.png" alt="Hashboard — dark mode" width="300">
+  <img src="docs/screenshots/hero.png" alt="Blisspoint — dark mode" width="300">
   &nbsp;&nbsp;
-  <img src="docs/screenshots/pearl.png" alt="Hashboard — Pearl (light) mode" width="300">
+  <img src="docs/screenshots/pearl.png" alt="Blisspoint — Pearl (light) mode" width="300">
 </p>
 
-Hashboard turns an ASIC miner into an ordinary appliance: open it on your phone, see how much heat it's making, and slide it up or down. No mining knowledge required. It's made for the people you share a home with — your partner, your kids, a friend — not for the person who set the miner up.
+Blisspoint turns an ASIC miner into an ordinary appliance: open it on your phone, see how much heat it's making, and slide it up or down. No mining knowledge required. It's made for the people you share a home with — your partner, your kids, a friend — not for the person who set the miner up.
 
 It installs in one tap on **StartOS (Start9)**, with **Umbrel** and **Home Assistant** on the way.
 
@@ -24,16 +24,16 @@ It installs in one tap on **StartOS (Start9)**, with **Umbrel** and **Home Assis
 
 ## Supported miners
 
-Hashboard speaks to miners through the open **asic-rs** library from the [256 Foundation](https://github.com/256foundation/asic-rs). Monitoring works across **Antminer (stock), Whatsminer, Avalon, BraiinsOS+, LuxOS, Vnish, ePIC, Marathon, Bitaxe** and more. Power-target control is available wherever the firmware exposes it.
+Blisspoint speaks to miners through the open **asic-rs** library from the [256 Foundation](https://github.com/256foundation/asic-rs). Monitoring works across **Antminer (stock), Whatsminer, Avalon, BraiinsOS+, LuxOS, Vnish, ePIC, Marathon, Bitaxe** and more. Power-target control is available wherever the firmware exposes it.
 
 ## Install
 
 ### StartOS (Start9) — recommended
-Download the latest `hashboard.s9pk` from [**Releases**](https://github.com/heatpunk/hashboard/releases/latest) and sideload it: in StartOS, go to **System → Sideload** and pick the file.
+Download the latest `blisspoint.s9pk` from [**Releases**](https://github.com/heatpunk/blisspoint/releases/latest) and sideload it: in StartOS, go to **System → Sideload** and pick the file.
 
 ### Docker
 ```bash
-docker run -d --network host --name hashboard ghcr.io/heatpunk/hashboard:latest
+docker run -d --network host --name blisspoint ghcr.io/heatpunk/blisspoint:latest
 ```
 `--network host` lets the container reach miners on your LAN. The UI is served on port 80.
 
@@ -44,16 +44,16 @@ Add our community app store in your Umbrel — **App Store → ⋯ → Community
 https://github.com/heatpunk/umbrel-app-store
 ```
 
-Then install **Hashboard** from the store. Details and official-store submission notes live in [`umbrel/README.md`](umbrel/README.md).
+Then install **Blisspoint** from the store. Details and official-store submission notes live in [`umbrel/README.md`](umbrel/README.md).
 
 ### Home Assistant
 On Home Assistant OS/Supervised, add this repo as an add-on repository — **Settings → Add-ons → Add-on Store → ⋯ → Repositories**:
 
 ```
-https://github.com/heatpunk/hashboard
+https://github.com/heatpunk/blisspoint
 ```
 
-Then install the **Hashboard** add-on. Container-based installs can use the HACS integration instead — see [`hashboard-addon/DOCS.md`](hashboard-addon/DOCS.md).
+Then install the **Blisspoint** add-on. Container-based installs can use the HACS integration instead — see [`blisspoint-addon/DOCS.md`](blisspoint-addon/DOCS.md).
 
 ## How it works
 
@@ -101,8 +101,8 @@ Open the Vite URL (port `8080`) from a phone on the same network. See [CONTRIBUT
 
 ## Built on
 
-- [**asic-rs**](https://github.com/256foundation/asic-rs) — the 256 Foundation's open miner-management library, which gives Hashboard its multi-firmware support.
-- [**StartOS**](https://github.com/Start9Labs/start-os) — the sovereign-server OS Hashboard packages for.
+- [**asic-rs**](https://github.com/256foundation/asic-rs) — the 256 Foundation's open miner-management library, which gives Blisspoint its multi-firmware support.
+- [**StartOS**](https://github.com/Start9Labs/start-os) — the sovereign-server OS Blisspoint packages for.
 
 ## License
 

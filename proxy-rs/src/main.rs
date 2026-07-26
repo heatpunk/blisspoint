@@ -1,4 +1,4 @@
-//! Hashboard proxy-rs — Rust replacement for server/proxy.cjs
+//! Blisspoint proxy-rs — Rust replacement for server/proxy.cjs
 //!
 //! Listens on 127.0.0.1:8081 (same address the old Node proxy used so that
 //! server/serve.cjs and the React app continue to work without modification).
@@ -20,6 +20,7 @@ use std::str::FromStr;
 use asic_rs::MinerFactory;
 use asic_rs_core::config::tuning::TuningConfig;
 use asic_rs_core::data::miner::TuningTarget;
+use asic_rs_core::traits::auth::MinerAuth;
 use axum::{
     Router,
     extract::{Path, Query, State},
@@ -167,11 +168,11 @@ async fn handle_pause_resume(
         Err(_) => return bad_request("invalid IP address"),
     };
 
-    let _password = body.map(|b| b.password.clone()).unwrap_or_default();
+    let password = body.map(|b| b.password.clone()).filter(|p| !p.is_empty());
 
     // Discover the miner
     let factory = MinerFactory::new();
-    let miner = match factory.get_miner(addr).await {
+    let mut miner = match factory.get_miner(addr).await {
         Ok(Some(m)) => m,
         Ok(None) => {
             return json_response(
@@ -186,6 +187,10 @@ async fn handle_pause_resume(
             );
         }
     };
+
+    if let Some(pw) = password {
+        miner.set_auth(MinerAuth::new("root", pw));
+    }
 
     // Issue #31 decision: use native pause/resume from asic-rs Pause/Resume traits.
     // The Miner trait includes Pause and Resume via HasMinerControl.
@@ -272,10 +277,14 @@ async fn miner_set_power(
         return bad_request("watts must be positive");
     }
 
-    let _password = body.password;
+    let password = if body.password.is_empty() {
+        None
+    } else {
+        Some(body.password.clone())
+    };
 
     let factory = MinerFactory::new();
-    let miner = match factory.get_miner(addr).await {
+    let mut miner = match factory.get_miner(addr).await {
         Ok(Some(m)) => m,
         Ok(None) => {
             return json_response(
@@ -290,6 +299,10 @@ async fn miner_set_power(
             );
         }
     };
+
+    if let Some(pw) = password {
+        miner.set_auth(MinerAuth::new("root", pw));
+    }
 
     // BraiinsOS+ v26.04+ (including v26.06) returns false from supports_tuning_config()
     // and uses a dedicated power-limit endpoint instead. Try that as fallback.
@@ -444,7 +457,7 @@ async fn main() {
 
     let addr = "127.0.0.1:8081";
     let listener = tokio::net::TcpListener::bind(addr).await.expect("bind");
-    info!("Hashboard proxy-rs → http://{addr}");
+    info!("Blisspoint proxy-rs → http://{addr}");
 
     axum::serve(listener, build_router())
         .await

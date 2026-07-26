@@ -1,21 +1,21 @@
 # Umbrel packaging
 
-This directory contains the Umbrel app definition for Hashboard.
+This directory contains the Umbrel app definition for Blisspoint.
 
 ## Test it on an Umbrel device (community app store)
 
-The quickest way to run Hashboard on Umbrel today is via a community app store
-containing the `hashboard/` directory from here. On your Umbrel:
-**App Store → ⋯ → Community App Stores → add the store URL → install Hashboard.**
+The quickest way to run Blisspoint on Umbrel today is via a community app store
+containing the `blisspoint/` directory from here. On your Umbrel:
+**App Store → ⋯ → Community App Stores → add the store URL → install Blisspoint.**
 
 ## Submit to the official Umbrel App Store
 
 1. Fork [getumbrel/umbrel-apps](https://github.com/getumbrel/umbrel-apps).
-2. Copy `umbrel/hashboard/` into the fork's root as `hashboard/`.
+2. Copy `umbrel/blisspoint/` into the fork's root as `blisspoint/`.
 3. Pin the image by digest in `docker-compose.yml` (required by Umbrel):
    ```bash
-   docker buildx imagetools inspect ghcr.io/heatpunk/hashboard:0.5.2
-   # then: image: ghcr.io/heatpunk/hashboard:0.5.2@sha256:<digest>
+   docker buildx imagetools inspect ghcr.io/heatpunk/blisspoint:0.5.3
+   # then: image: ghcr.io/heatpunk/blisspoint:0.5.3@sha256:<digest>
    ```
 4. Add 3–5 gallery screenshots (1600×1000 PNG) and list them in `umbrel-app.yml`.
 5. Open a PR against `getumbrel/umbrel-apps` following their template.

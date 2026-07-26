@@ -94,8 +94,8 @@ export function SettingsDialog({ open, onOpenChange, minerId }: Props) {
             </div>
             <p className="text-[10px] text-muted-foreground/70 leading-snug">
               {miner.boards
-                ? `${miner.boards.active} / ${miner.boards.total} hashboards active — Max = machine target ÷ ${miner.boards.total} × ${miner.boards.active}, to the nearest 50 W. Never higher.`
-                : "Scaled to the active hashboards"}
+                ? `${miner.boards.active} / ${miner.boards.total} blisspoints active — Max = machine target ÷ ${miner.boards.total} × ${miner.boards.active}, to the nearest 50 W. Never higher.`
+                : "Scaled to the active blisspoints"}
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -104,7 +104,7 @@ export function SettingsDialog({ open, onOpenChange, minerId }: Props) {
                   type="number"
                   value={miner.config.powerMin}
                   readOnly
-                  title="Scaled to active hashboards — not editable here"
+                  title="Scaled to active blisspoints — not editable here"
                   className="font-readout opacity-60 cursor-not-allowed"
                 />
               </div>

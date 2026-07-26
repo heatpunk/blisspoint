@@ -1,4 +1,4 @@
-//! Mapping from asic-rs `MinerData` to Hashboard's HTTP JSON contract.
+//! Mapping from asic-rs `MinerData` to Blisspoint's HTTP JSON contract.
 //!
 //! This module is a pure function — no network, no async — so it is easy
 //! to unit-test with constructed `MinerData` values.
@@ -155,7 +155,7 @@ fn min_power_target(data: &MinerData) -> Option<f64> {
 // Main mapping function
 // ---------------------------------------------------------------------------
 
-/// Map asic-rs `MinerData` to Hashboard's `/api/miners/{ip}/stats` response.
+/// Map asic-rs `MinerData` to Blisspoint's `/api/miners/{ip}/stats` response.
 pub fn map_miner_data(data: &MinerData) -> StatsResponse {
     // --- live.th ---
     // Current hashrate in TH/s; 0.0 when paused.

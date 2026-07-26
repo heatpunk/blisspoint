@@ -1,4 +1,4 @@
-# Hashboard - StartOS service image
+# Blisspoint - StartOS service image
 #
 # Stage 1: build the Rust proxy (proxy-rs) as a static musl binary.
 # rust:alpine uses musl libc by default → the resulting binary runs on any

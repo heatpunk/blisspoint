@@ -1,11 +1,11 @@
 manifestVersion: 1
-id: hashboard
+id: blisspoint
 category: bitcoin
-name: Hashboard
-version: "0.5.2"
+name: Blisspoint
+version: "0.5.3"
 tagline: Run your ASIC miner as a space heater
 description: >-
-  Hashboard turns a Bitcoin ASIC miner into an ordinary household appliance:
+  Blisspoint turns a Bitcoin ASIC miner into an ordinary household appliance:
   open it on your phone, see how much heat it is making, and slide the power
   up or down. It is built for the people you share a home with — no mining
   knowledge required.
@@ -21,12 +21,12 @@ description: >-
   BraiinsOS+, LuxOS, Vnish, ePIC, Marathon, Bitaxe and more, with power
   control wherever the firmware exposes it.
 developer: heatpunk
-website: https://github.com/heatpunk/hashboard
+website: https://github.com/heatpunk/blisspoint
 dependencies: []
-repo: https://github.com/heatpunk/hashboard
-support: https://github.com/heatpunk/hashboard/issues
+repo: https://github.com/heatpunk/blisspoint
+support: https://github.com/heatpunk/blisspoint/issues
 port: 3847
-icon: https://raw.githubusercontent.com/heatpunk/umbrel-app-store/main/heatpunk-hashboard/icon.png
+icon: https://raw.githubusercontent.com/heatpunk/umbrel-app-store/main/heatpunk-blisspoint/icon.png
 gallery: []
 path: ""
 defaultUsername: ""
@@ -34,6 +34,6 @@ defaultPassword: ""
 submitter: heatpunk
 submission: https://github.com/getumbrel/umbrel-apps
 releaseNotes: >-
-  The real Hashboard icon now shows everywhere, clearer start-screen
+  The real Blisspoint icon now shows everywhere, clearer start-screen
   instruction, and board count no longer flickers during power-target
   cool-down.

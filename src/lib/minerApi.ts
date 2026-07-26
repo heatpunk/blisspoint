@@ -18,7 +18,7 @@ export interface MinerSnapshot {
   machineFull: number | null;
   /** whole-machine minimum allowed power target (watts), firmware floor; null when not exposed */
   powerMin: number | null;
-  /** active vs total hashboards — the share is active/total */
+  /** active vs total blisspoints — the share is active/total */
   boards: { active: number; total: number } | null;
   /** explicit paused state from the miner (asic-rs is_mining); falls back to
    *  the old hashrate≈0 heuristic against proxies that predate the field */

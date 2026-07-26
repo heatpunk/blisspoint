@@ -1,4 +1,4 @@
-# Hashboard
+# Blisspoint
 
 A dead-simple UI for running a Bitcoin ASIC miner as a space heater.
 
@@ -10,7 +10,7 @@ Supervised** only. If your Home Assistant runs as a container — for example
 this add-on cannot be installed.
 
 **Running Home Assistant on StartOS (or any container-based install)?**
-Install the native **Hashboard app on your StartOS server**, then use the
+Install the native **Blisspoint app on your StartOS server**, then use the
 **HACS integration** (see below) to pull live miner data into Home Assistant
 as proper sensors. You get full automations, dashboards, and history — no
 add-on needed.
@@ -19,27 +19,27 @@ add-on needed.
 
 1. In Home Assistant, go to **Settings → Add-ons → Add-on Store**.
 2. Open the **⋮ menu → Repositories** and add:
-   `https://github.com/heatpunk/hashboard`
-3. Install **Hashboard** from the list and start it.
+   `https://github.com/heatpunk/blisspoint`
+3. Install **Blisspoint** from the list and start it.
 4. Open the Web UI (port `8099` by default), then tap **Scan LAN** in the
    menu — or add your miner's IP manually in Settings.
 
 ## Installation via HACS (StartOS / Docker / any HA install)
 
 HACS lets any Home Assistant install pull live miner data from a running
-Hashboard instance — no add-on store required.
+Blisspoint instance — no add-on store required.
 
-**Prerequisites:** Hashboard is already running somewhere on your LAN (e.g.,
+**Prerequisites:** Blisspoint is already running somewhere on your LAN (e.g.,
 the native StartOS app, or any Docker host).
 
 1. Install [HACS](https://hacs.xyz) in Home Assistant if you haven't already.
 2. In HACS → Integrations, open the **⋮ menu → Custom repositories**, add
-   `https://github.com/heatpunk/hashboard` and choose category
+   `https://github.com/heatpunk/blisspoint` and choose category
    **Integration**.
-3. Search for **Hashboard** in HACS and install it. Restart Home Assistant.
+3. Search for **Blisspoint** in HACS and install it. Restart Home Assistant.
 4. Go to **Settings → Devices & Services → Add Integration**, search for
-   **Hashboard**, and enter:
-   - **Hashboard URL** — the address of your Hashboard server, e.g.
+   **Blisspoint**, and enter:
+   - **Blisspoint URL** — the address of your Blisspoint server, e.g.
      `http://192.168.1.100:8099`
    - **Miner IP** — the LAN IP of your ASIC miner
 5. Home Assistant now has four sensors per miner: hashrate (TH/s), power (W),
@@ -64,4 +64,4 @@ Marathon, Bitaxe and more, with power control wherever the firmware exposes it.
 
 ## Support
 
-Issues and questions: https://github.com/heatpunk/hashboard/issues
+Issues and questions: https://github.com/heatpunk/blisspoint/issues

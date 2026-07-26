@@ -39,4 +39,4 @@ http.createServer((req, res) => {
     return;
   }
   serveStatic(req, res);
-}).listen(PORT, "0.0.0.0", () => console.log("Hashboard serving on :" + PORT + " (UI + /api -> " + PROXY + ")"));
+}).listen(PORT, "0.0.0.0", () => console.log("Blisspoint serving on :" + PORT + " (UI + /api -> " + PROXY + ")"));

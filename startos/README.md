@@ -1,6 +1,6 @@
-# Hashboard - StartOS package (s9pk)
+# Blisspoint - StartOS package (s9pk)
 
-Scaffold to package Hashboard for **StartOS 0.4.0.x**.
+Scaffold to package Blisspoint for **StartOS 0.4.0.x**.
 
 ## Layout
 - `../Dockerfile` - build (Vite -> dist) + runtime (proxy :8081 + UI/`/api` :80).
@@ -10,9 +10,9 @@ Scaffold to package Hashboard for **StartOS 0.4.0.x**.
 - `instructions.md` - post-install instructions.
 
 ## Build & publish (from repo root)
-    start-cli s9pk pack . -o hashboard.s9pk --icon startos/icon.png
-    start-cli s9pk inspect manifest hashboard.s9pk
-    start-cli s9pk publish hashboard.s9pk
+    start-cli s9pk pack . -o blisspoint.s9pk --icon startos/icon.png
+    start-cli s9pk inspect manifest blisspoint.s9pk
+    start-cli s9pk publish blisspoint.s9pk
 
 (or `make pack` / `make publish`)
 

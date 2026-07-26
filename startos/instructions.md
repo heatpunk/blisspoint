@@ -1,10 +1,10 @@
-# Hashboard
+# Blisspoint
 
 Run your ASIC miner as a space heater — simple enough for anyone in the house.
 
 ## Getting started
 
-1. Open **Hashboard** from your StartOS services and launch the Web UI (LAN),
+1. Open **Blisspoint** from your StartOS services and launch the Web UI (LAN),
    preferably on a phone or tablet on the same network as your miner.
 2. Open the miner menu at the bottom and tap **Scan LAN** to find miners
    automatically — or add a miner's IP address manually in Settings.

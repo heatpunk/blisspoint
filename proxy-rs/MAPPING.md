@@ -1,11 +1,11 @@
 # asic-rs field mapping
 
 This document maps asic-rs `MinerData` fields to the JSON contract that
-Hashboard's React UI consumes via `/api/miners/{ip}/stats`.
+Blisspoint's React UI consumes via `/api/miners/{ip}/stats`.
 
 ## Field mapping table
 
-| Hashboard field          | asic-rs source                                                                 | Notes |
+| Blisspoint field          | asic-rs source                                                                 | Notes |
 |--------------------------|--------------------------------------------------------------------------------|-------|
 | `live.th`                | `MinerData.hashrate` → `HashRate.as_unit(TeraHash).value`                     | Rounded to 2 decimals. 0.0 when `hashrate` is `None` or paused. |
 | `live.watts`             | `MinerData.wattage` → `Power.as_watts()`                                      | `null` when `wattage` is `None`. |
@@ -14,7 +14,7 @@ Hashboard's React UI consumes via `/api/miners/{ip}/stats`.
 | `config.fullTarget`      | (see below)                                                                    | `null` when not available. |
 | `config.powerMin`        | always `null`                                                                  | Braiins floor not on open API. |
 | `config.boards.active`   | Count of `BoardData` where `active == Some(true)`, else boards with hashrate/chips | 0 → `boards: null`. |
-| `config.boards.total`    | `max(active, MinerData.expected_hashboards ?? model_default_3)`                | Never less than active. |
+| `config.boards.total`    | `max(active, MinerData.expected_blisspoints ?? model_default_3)`                | Never less than active. |
 | `model`                  | `"{device_info.make} {device_info.model}"`, fallback `"Antminer"`             | Mirrors old `detectModel`. |
 | `needPassword`           | always `false`                                                                 | Reads use open CGMiner API. |
 

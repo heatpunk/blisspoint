@@ -1,0 +1,11 @@
+{
+  "domain": "blisspoint",
+  "name": "Blisspoint",
+  "version": "0.5.2",
+  "config_flow": true,
+  "documentation": "https://github.com/heatpunk/blisspoint",
+  "issue_tracker": "https://github.com/heatpunk/blisspoint/issues",
+  "requirements": [],
+  "iot_class": "local_polling",
+  "codeowners": ["@heatpunk"]
+}

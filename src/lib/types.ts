@@ -31,7 +31,7 @@ export interface Miner {
   status: MinerStatus;
   /** reachable on the most recent poll — drives the live dot/ON state */
   online?: boolean;
-  /** active vs total hashboards, populated from the miner */
+  /** active vs total blisspoints, populated from the miner */
   boards?: { active: number; total: number };
   config: MinerConfig;
   live: MinerLive;

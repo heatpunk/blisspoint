@@ -1,15 +1,15 @@
 {
-  "name": "hashboard-startos-sdk-build",
+  "name": "blisspoint-startos-sdk-build",
   "private": true,
   "scripts": {
     "build": "rm -rf ./javascript && ( cd ../startos && find . -name '*.ts' -exec cp --parents -f {} ../sdk-build/ ';' ) && ncc build index.ts -o ./javascript",
     "check": "tsc --noEmit"
   },
   "dependencies": {
-    "@start9labs/start-sdk": "1.5.3"
+    "@start9labs/start-sdk": "2.0.6"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^20.19.33",
     "@vercel/ncc": "^0.38.4",
     "typescript": "^5.9.3"
   }

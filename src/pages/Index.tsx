@@ -55,7 +55,7 @@ const Index = () => {
             className="text-sm font-light uppercase text-muted-foreground/80"
             style={{ letterSpacing: "0.6em", paddingLeft: "0.6em" }}
           >
-            Hashboard
+            Blisspoint
           </h1>
           <p className="text-xs text-muted-foreground text-center leading-relaxed">
             Tap below and <strong>Scan LAN</strong> to find miners on your local network.
@@ -148,7 +148,7 @@ const Index = () => {
           className="text-sm font-light uppercase text-muted-foreground/80"
           style={{ letterSpacing: "0.6em", paddingLeft: "0.6em" }}
         >
-          Hashboard
+          Blisspoint
         </h1>
         <div className="w-full grid grid-cols-3 items-center">
           <button

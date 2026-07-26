@@ -1,12 +1,12 @@
-name: Hashboard
+name: Blisspoint
 version: "0.5.2"
-slug: hashboard
+slug: blisspoint
 description: Run your ASIC miner as a space heater — simple enough for anyone in the house
-url: https://github.com/heatpunk/hashboard
+url: https://github.com/heatpunk/blisspoint
 arch:
   - amd64
   - aarch64
-image: ghcr.io/heatpunk/hashboard
+image: ghcr.io/heatpunk/blisspoint
 init: false
 ports:
   80/tcp: 8099

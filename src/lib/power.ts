@@ -4,7 +4,7 @@ export function roundTo50(watts: number): number {
 }
 
 /**
- * The power target to display for a miner running on a subset of its hashboards.
+ * The power target to display for a miner running on a subset of its blisspoints.
  *
  * BraiinsOS keeps ONE whole-machine power limit (`PowerLimit` from tunerstatus)
  * sized for ALL `total` boards. When only `active` boards are populated, the
