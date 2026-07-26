@@ -86,7 +86,7 @@ jobs:
       - name: Initialize packaging workspace
         run: |
           cd "$GITHUB_WORKSPACE/.."
-          "$HOME/.local/bin/start-cli" init-workspace
+          "$HOME/.local/bin/start-cli" init
 
       - name: Install sdk-build deps
         run: npm --prefix sdk-build install
