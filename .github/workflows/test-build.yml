@@ -101,6 +101,7 @@ jobs:
 
       - name: Pack s9pk
         run: |
+          echo "127.0.0.1 dev-vm.local" | sudo tee -a /etc/hosts
           start-cli s9pk pack \
             --javascript "$GITHUB_WORKSPACE/sdk-build/javascript" \
             --icon startos/icon.png \
