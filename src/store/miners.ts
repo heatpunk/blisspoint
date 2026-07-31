@@ -303,8 +303,23 @@ export const useMiners = create<State>()(
       scan: async () => {
         set({ scanning: true });
         const { miners } = get();
-        const existingIp = miners[0]?.ip ?? "192.168.1.1";
-        const subnet = existingIp.split(".").slice(0, 3).join(".");
+        let subnet = "";
+        if (miners[0]?.ip) {
+          subnet = miners[0].ip.split(".").slice(0, 3).join(".");
+        } else {
+          try {
+            const res = await fetch("/api/subnet");
+            if (res.ok) {
+              const data = await res.json();
+              if (data.subnet) subnet = data.subnet;
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+        if (!subnet) {
+          subnet = "192.168.1";
+        }
 
         const discovered = await scanLAN(subnet);
 
