@@ -12,32 +12,32 @@ const backendStorage: StateStorage = {
       if (res.ok) {
         const text = await res.text();
         if (text && text.trim() !== "" && text.trim() !== "{}") {
-          try { localStorage.setItem(name, text); } catch (_) {}
+          try { localStorage.setItem(name, text); } catch {}
           return text;
         }
       }
-    } catch (_) {
+    } catch {
       // Fallback to localStorage if server endpoint is unavailable
     }
     return localStorage.getItem(name);
   },
   setItem: async (name: string, value: string): Promise<void> => {
-    try { localStorage.setItem(name, value); } catch (_) {}
+    try { localStorage.setItem(name, value); } catch {}
     try {
       await fetch("/api/state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: value,
       });
-    } catch (_) {
+    } catch {
       // Ignore offline/dev error
     }
   },
   removeItem: async (name: string): Promise<void> => {
-    try { localStorage.removeItem(name); } catch (_) {}
+    try { localStorage.removeItem(name); } catch {}
     try {
       await fetch("/api/state", { method: "DELETE" });
-    } catch (_) {}
+    } catch {}
   },
 };
 
