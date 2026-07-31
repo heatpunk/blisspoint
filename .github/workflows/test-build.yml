@@ -1,14 +1,15 @@
 name: Test build (s9pk artifact)
 
-# Builds a sideloadable blisspoint.s9pk and uploads it as a workflow ARTIFACT —
-# no public GitHub Release, no git tag. For testing this branch before merge.
-# Download the artifact from the run's summary page, unzip, sideload in StartOS.
-# The version is read from startos/manifest (the dockerTag), so it always matches.
-
 on:
   push:
     branches: [main, feature/rename-to-blisspoint]
+    paths-ignore:
+      - '**.md'
   workflow_dispatch:
+
+concurrency:
+  group: test-build-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
