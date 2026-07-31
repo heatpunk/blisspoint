@@ -12,7 +12,7 @@ const backendStorage: StateStorage = {
       if (res.ok) {
         const text = await res.text();
         if (text && text.trim() !== "" && text.trim() !== "{}") {
-          try { localStorage.setItem(name, text); } catch {}
+          try { localStorage.setItem(name, text); } catch { /* ignore */ }
           return text;
         }
       }
@@ -22,7 +22,7 @@ const backendStorage: StateStorage = {
     return localStorage.getItem(name);
   },
   setItem: async (name: string, value: string): Promise<void> => {
-    try { localStorage.setItem(name, value); } catch {}
+    try { localStorage.setItem(name, value); } catch { /* ignore */ }
     try {
       await fetch("/api/state", {
         method: "POST",
@@ -34,10 +34,10 @@ const backendStorage: StateStorage = {
     }
   },
   removeItem: async (name: string): Promise<void> => {
-    try { localStorage.removeItem(name); } catch {}
+    try { localStorage.removeItem(name); } catch { /* ignore */ }
     try {
       await fetch("/api/state", { method: "DELETE" });
-    } catch {}
+    } catch { /* ignore */ }
   },
 };
 

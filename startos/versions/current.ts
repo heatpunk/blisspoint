@@ -6,7 +6,7 @@ export const current = VersionInfo.of({
     en_US: 'Testing build with Blisspoint rename and CI fixes.',
   },
   migrations: {
-    up: async ({ effects }) => {},
+    up: async ({ _effects }) => {},
     down: IMPOSSIBLE,
   },
 })

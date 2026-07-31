@@ -2,12 +2,12 @@ import { i18n } from './i18n'
 import { sdk } from './sdk'
 import { uiPort } from './utils'
 
-export const main = sdk.setupMain(async ({ effects }) => {
+export const main = sdk.setupMain(async ({ _effects }) => {
   console.info(i18n('Starting Blisspoint'))
 
-  return sdk.Daemons.of(effects).addDaemon('primary', {
+  return sdk.Daemons.of(_effects).addDaemon('primary', {
     subcontainer: await sdk.SubContainer.of(
-      effects,
+      _effects,
       { imageId: 'blisspoint' },
       sdk.Mounts.of().mountVolume({
         volumeId: 'main',
@@ -23,7 +23,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
     ready: {
       display: i18n('Web Interface'),
       fn: () =>
-        sdk.healthCheck.checkPortListening(effects, uiPort, {
+        sdk.healthCheck.checkPortListening(_effects, uiPort, {
           successMessage: i18n('The web interface is ready'),
           errorMessage: i18n('The web interface is not ready'),
         }),
