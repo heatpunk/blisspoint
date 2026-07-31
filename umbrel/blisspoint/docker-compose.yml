@@ -8,8 +8,8 @@ services:
 
   web:
     # NOTE: pin to a sha256 digest before submitting to getumbrel/umbrel-apps
-    # (get it with: docker buildx imagetools inspect ghcr.io/heatpunk/blisspoint:0.5.3)
-    image: ghcr.io/heatpunk/blisspoint:0.5.3
+    # (get it with: docker buildx imagetools inspect ghcr.io/heatpunk/blisspoint:0.5.4)
+    image: ghcr.io/heatpunk/blisspoint:0.5.4
     restart: on-failure
     init: true
     stop_grace_period: 1m
