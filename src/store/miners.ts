@@ -1,9 +1,45 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage, type StateStorage } from "zustand/middleware";
 import type { Miner, MinerConfig } from "@/lib/types";
 import { fetchMinerStats, scanLAN, setMinerPaused, setMinerPowerTarget } from "@/lib/minerApi";
 
 const STORAGE_KEY = "blisspoint.state.v2";
+
+const backendStorage: StateStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    try {
+      const res = await fetch("/api/state");
+      if (res.ok) {
+        const text = await res.text();
+        if (text && text.trim() !== "" && text.trim() !== "{}") {
+          try { localStorage.setItem(name, text); } catch (_) {}
+          return text;
+        }
+      }
+    } catch (_) {
+      // Fallback to localStorage if server endpoint is unavailable
+    }
+    return localStorage.getItem(name);
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    try { localStorage.setItem(name, value); } catch (_) {}
+    try {
+      await fetch("/api/state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: value,
+      });
+    } catch (_) {
+      // Ignore offline/dev error
+    }
+  },
+  removeItem: async (name: string): Promise<void> => {
+    try { localStorage.removeItem(name); } catch (_) {}
+    try {
+      await fetch("/api/state", { method: "DELETE" });
+    } catch (_) {}
+  },
+};
 
 const seed = (): Miner[] => [];
 
@@ -324,6 +360,7 @@ export const useMiners = create<State>()(
     }),
     {
       name: STORAGE_KEY,
+      storage: createJSONStorage(() => backendStorage),
       version: 2,
       // v0→v1: power values and live readings now come from the miner on each poll.
       // v1→v2: powerMin/powerMax/powerTarget now store whole-machine watts (not
