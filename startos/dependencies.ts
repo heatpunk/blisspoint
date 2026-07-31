@@ -1,5 +1,5 @@
 import { sdk } from './sdk'
 
 export const setDependencies = sdk.setupDependencies(
-  async ({ _effects }) => ({}),
+  async ({ effects }) => ({}),
 )
