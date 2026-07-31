@@ -1,8 +1,8 @@
 export const short = {
-  en_US: 'Monitor and control your LAN bitcoin miners.',
+  en_US: 'Turn your Bitcoin ASIC miner into a space heater.',
 }
 
 export const long = {
   en_US:
-    'Minimalist, mobile-first panel for monitoring and controlling bitcoin miners on your local network (BraiinsOS+ / CGMiner API). Watch live hashrate, power, and temperature; pause and resume mining.',
+    'Blisspoint turns a Bitcoin ASIC miner into an ordinary household appliance: open it on your phone, see how much heat it is making, and slide the power up or down.',
 }
