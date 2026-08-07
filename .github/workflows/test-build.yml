@@ -21,8 +21,11 @@ jobs:
         with:
           context: .
           platforms: linux/amd64
-          outputs: type=docker,dest=/tmp/blisspoint-v0.6.0.tar
+          load: true
           tags: blisspoint:v0.6.0
+
+      - name: Save Docker tar
+        run: docker save blisspoint:v0.6.0 -o /tmp/blisspoint-v0.6.0.tar
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
