@@ -1,7 +1,7 @@
 {
   "name": "blisspoint",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.6.0",
   "type": "module",
   "scripts": {
     "proxy": "cargo run --manifest-path proxy-rs/Cargo.toml",
