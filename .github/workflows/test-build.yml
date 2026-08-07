@@ -7,7 +7,9 @@ name: Test build (s9pk artifact)
 
 on:
   push:
-    branches: [main, feature/rename-to-blisspoint]
+    branches: [main, 'feat/*']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 env:
@@ -24,7 +26,7 @@ jobs:
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
       - name: Resolve version from manifest
         id: ver
@@ -66,7 +68,7 @@ jobs:
       contents: read
       packages: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -114,7 +116,7 @@ jobs:
         run: start-cli s9pk inspect blisspoint.s9pk manifest
 
       - name: Upload s9pk artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v4
         with:
           name: blisspoint-${{ needs.docker.outputs.version }}-s9pk
           path: blisspoint.s9pk

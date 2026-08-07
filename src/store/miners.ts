@@ -1,9 +1,46 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
 import type { Miner, MinerConfig } from "@/lib/types";
 import { fetchMinerStats, scanLAN, setMinerPaused, setMinerPowerTarget } from "@/lib/minerApi";
 
 const STORAGE_KEY = "blisspoint.state.v2";
+
+const customStorage: StateStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    try {
+      const res = await fetch("/api/state");
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === "object" && Object.keys(data).length > 0) {
+          return JSON.stringify(data);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load state from /api/state, falling back to localStorage", e);
+    }
+    return localStorage.getItem(name);
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    localStorage.setItem(name, value);
+    try {
+      await fetch("/api/state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: value,
+      });
+    } catch (e) {
+      console.error("Failed to persist state to /api/state", e);
+    }
+  },
+  removeItem: async (name: string): Promise<void> => {
+    localStorage.removeItem(name);
+    try {
+      await fetch("/api/state", { method: "DELETE" });
+    } catch (e) {
+      console.error("Failed to delete state from /api/state", e);
+    }
+  },
+};
 
 const seed = (): Miner[] => [];
 
@@ -267,10 +304,59 @@ export const useMiners = create<State>()(
       scan: async () => {
         set({ scanning: true });
         const { miners } = get();
-        const existingIp = miners[0]?.ip ?? "192.168.1.1";
-        const subnet = existingIp.split(".").slice(0, 3).join(".");
+        const subnetsToScan = new Set<string>();
 
-        const discovered = await scanLAN(subnet);
+        if (miners[0]?.ip) {
+          const parts = miners[0].ip.split(".");
+          if (parts.length === 4) {
+            const first = parseInt(parts[0], 10);
+            const second = parseInt(parts[1], 10);
+            if (!(first === 172 && second >= 16 && second <= 31)) {
+              subnetsToScan.add(parts.slice(0, 3).join("."));
+            }
+          }
+        }
+
+        try {
+          const res = await fetch("/api/subnet");
+          if (res.ok) {
+            const data = await res.json();
+            if (data.subnet && typeof data.subnet === "string") {
+              const parts = data.subnet.split(".");
+              if (parts.length === 3 || parts.length === 4) {
+                const first = parseInt(parts[0], 10);
+                const second = parseInt(parts[1], 10);
+                if (!(first === 172 && second >= 16 && second <= 31)) {
+                  subnetsToScan.add(parts.slice(0, 3).join("."));
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+
+        subnetsToScan.add("192.168.1");
+        subnetsToScan.add("192.168.0");
+        subnetsToScan.add("10.0.0");
+
+        let allDiscovered: Array<{ ip: string; model?: string; live: { th: number; watts?: number; chipTemp?: number; fanSpeed?: number } }> = [];
+        for (const subnet of subnetsToScan) {
+          try {
+            const discovered = await scanLAN(subnet);
+            allDiscovered = [...allDiscovered, ...discovered];
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        const map = new Map<string, { ip: string; model?: string; live: { th: number; watts?: number; chipTemp?: number; fanSpeed?: number } }>();
+        for (const item of allDiscovered) {
+          if (item && item.ip) {
+            map.set(item.ip, item);
+          }
+        }
+        const discovered = Array.from(map.values());
 
         set((s) => {
           const existingIps = new Set(s.miners.map((m) => m.ip));
@@ -325,6 +411,7 @@ export const useMiners = create<State>()(
     {
       name: STORAGE_KEY,
       version: 2,
+      storage: createJSONStorage(() => customStorage),
       // v0→v1: power values and live readings now come from the miner on each poll.
       // v1→v2: powerMin/powerMax/powerTarget now store whole-machine watts (not
       //   scaled per active boards); reset to 0 so the ceiling is re-captured
