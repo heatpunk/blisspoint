@@ -18,8 +18,8 @@ RUN cp "$(find /build/proxy-rs/target/release -maxdepth 1 -name proxy-rs -type f
 # platform ($BUILDPLATFORM) instead of emulating — much faster for arm64.
 FROM --platform=$BUILDPLATFORM node:20-alpine AS build
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
+COPY package*.json pnpm-lock.yaml* ./ 
+RUN corepack enable && pnpm i --frozen-lockfile || npm i
 COPY . .
 RUN npm run build
 
