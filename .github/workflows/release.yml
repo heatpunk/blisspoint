@@ -10,10 +10,6 @@ on:
         description: 'Version (e.g. 0.1.1)'
         required: true
 
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -70,6 +66,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   s9pk:
     name: Build s9pk & create release
