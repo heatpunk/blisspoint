@@ -303,25 +303,43 @@ export const useMiners = create<State>()(
       scan: async () => {
         set({ scanning: true });
         const { miners } = get();
-        let subnet = "";
+        const subnetsToScan = new Set<string>();
+
         if (miners[0]?.ip) {
-          subnet = miners[0].ip.split(".").slice(0, 3).join(".");
-        } else {
-          try {
-            const res = await fetch("/api/subnet");
-            if (res.ok) {
-              const data = await res.json();
-              if (data.subnet) subnet = data.subnet;
+          subnetsToScan.add(miners[0].ip.split(".").slice(0, 3).join("."));
+        }
+
+        try {
+          const res = await fetch("/api/subnet");
+          if (res.ok) {
+            const data = await res.json();
+            if (data.subnet && !data.subnet.startsWith("172.")) {
+              subnetsToScan.add(data.subnet);
             }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+
+        subnetsToScan.add("192.168.1");
+        subnetsToScan.add("192.168.0");
+        subnetsToScan.add("10.0.0");
+
+        let allDiscovered: any[] = [];
+        for (const subnet of subnetsToScan) {
+          try {
+            const discovered = await scanLAN(subnet);
+            allDiscovered = [...allDiscovered, ...discovered];
           } catch (e) {
             console.error(e);
           }
         }
-        if (!subnet) {
-          subnet = "192.168.1";
-        }
 
-        const discovered = await scanLAN(subnet);
+        const map = new Map();
+        for (const item of allDiscovered) {
+          map.set(item.ip, item);
+        }
+        const discovered = Array.from(map.values());
 
         set((s) => {
           const existingIps = new Set(s.miners.map((m) => m.ip));

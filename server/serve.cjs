@@ -88,7 +88,12 @@ function getLocalSubnet() {
     for (const iface of interfaces[name] || []) {
       if (!iface.internal && iface.family === "IPv4") {
         const parts = iface.address.split(".");
-        if (parts.length === 4 && parts[0] !== "127") {
+        if (parts.length === 4) {
+          const first = parseInt(parts[0], 10);
+          const second = parseInt(parts[1], 10);
+          // Ignore loopback (127.x.x.x) and Docker internal bridge networks (172.16.0.0 - 172.31.255.255)
+          if (first === 127) continue;
+          if (first === 172 && second >= 16 && second <= 31) continue;
           return parts[0] + "." + parts[1] + "." + parts[2];
         }
       }
