@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage, type StateStorage } from "zustand/middleware";
 import type { Miner, MinerConfig } from "@/lib/types";
-import { fetchMinerStats, scanLAN, setMinerPaused, setMinerPowerTarget } , type DiscoveredMiner } from "@/lib/minerApi";
+import { fetchMinerStats, scanLAN, setMinerPaused, setMinerPowerTarget } from "@/lib/minerApi";
 
 const STORAGE_KEY = "blisspoint.state.v2";
 
@@ -325,7 +325,7 @@ export const useMiners = create<State>()(
         subnetsToScan.add("192.168.0");
         subnetsToScan.add("10.0.0");
 
-        let allDiscovered: DiscoveredMiner[] = [];
+        let allDiscovered: any[] = [];
         for (const subnet of subnetsToScan) {
           try {
             const discovered = await scanLAN(subnet);
@@ -335,7 +335,7 @@ export const useMiners = create<State>()(
           }
         }
 
-        const map = new Map<string, DiscoveredMiner>();
+        const map = new Map();
         for (const item of allDiscovered) {
           map.set(item.ip, item);
         }
