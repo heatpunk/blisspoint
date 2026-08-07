@@ -410,6 +410,7 @@ export const useMiners = create<State>()(
     }),
     {
       name: STORAGE_KEY,
+      storage: createJSONStorage(() => backendStorage),
       version: 2,
       storage: createJSONStorage(() => customStorage),
       // v0→v1: power values and live readings now come from the miner on each poll.
