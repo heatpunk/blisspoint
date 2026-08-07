@@ -1,7 +1,7 @@
 "use strict";
 // Production server for StartOS: serves the built UI (dist/) and reverse-proxies
 // /api/* to the local CGMiner proxy (server/proxy.cjs on 127.0.0.1:8081).
-// Also handles /api/state for persisting application state to /data/state.json for StartOS backups.
+// Also handles /api/state and /api/subnet.
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
@@ -88,12 +88,12 @@ function getLocalSubnet() {
     for (const iface of interfaces[name] || []) {
       if (!iface.internal && iface.family === "IPv4") {
         const parts = iface.address.split(".");
-        if (parts.length === 4) {
+        if (parts.length === 4 && parts[0] !== "127") {
           const first = parseInt(parts[0], 10);
           const second = parseInt(parts[1], 10);
-          // Ignore loopback (127.x.x.x) and Docker internal bridge networks (172.16.0.0 - 172.31.255.255)
-          if (first === 127) continue;
-          if (first === 172 && second >= 16 && second <= 31) continue;
+          if (first === 172 && second >= 16 && second <= 31) {
+            continue;
+          }
           return parts[0] + "." + parts[1] + "." + parts[2];
         }
       }

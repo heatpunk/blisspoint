@@ -1,43 +1,44 @@
 import { create } from "zustand";
-import { persist, createJSONStorage, type StateStorage } from "zustand/middleware";
+import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
 import type { Miner, MinerConfig } from "@/lib/types";
 import { fetchMinerStats, scanLAN, setMinerPaused, setMinerPowerTarget } from "@/lib/minerApi";
 
 const STORAGE_KEY = "blisspoint.state.v2";
 
-const backendStorage: StateStorage = {
+const customStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
     try {
       const res = await fetch("/api/state");
       if (res.ok) {
-        const text = await res.text();
-        if (text && text.trim() !== "" && text.trim() !== "{}") {
-          try { localStorage.setItem(name, text); } catch (e) { console.error(e); /* ignore */ }
-          return text;
+        const data = await res.json();
+        if (data && typeof data === "object" && Object.keys(data).length > 0) {
+          return JSON.stringify(data);
         }
       }
-    } catch (e) { console.error(e);
-      // Fallback to localStorage if server endpoint is unavailable
+    } catch (e) {
+      console.error("Failed to load state from /api/state, falling back to localStorage", e);
     }
     return localStorage.getItem(name);
   },
   setItem: async (name: string, value: string): Promise<void> => {
-    try { localStorage.setItem(name, value); } catch (e) { console.error(e); /* ignore */ }
+    localStorage.setItem(name, value);
     try {
       await fetch("/api/state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: value,
       });
-    } catch (e) { console.error(e);
-      // Ignore offline/dev error
+    } catch (e) {
+      console.error("Failed to persist state to /api/state", e);
     }
   },
   removeItem: async (name: string): Promise<void> => {
-    try { localStorage.removeItem(name); } catch (e) { console.error(e); /* ignore */ }
+    localStorage.removeItem(name);
     try {
       await fetch("/api/state", { method: "DELETE" });
-    } catch (e) { console.error(e); /* ignore */ }
+    } catch (e) {
+      console.error("Failed to delete state from /api/state", e);
+    }
   },
 };
 
@@ -306,15 +307,29 @@ export const useMiners = create<State>()(
         const subnetsToScan = new Set<string>();
 
         if (miners[0]?.ip) {
-          subnetsToScan.add(miners[0].ip.split(".").slice(0, 3).join("."));
+          const parts = miners[0].ip.split(".");
+          if (parts.length === 4) {
+            const first = parseInt(parts[0], 10);
+            const second = parseInt(parts[1], 10);
+            if (!(first === 172 && second >= 16 && second <= 31)) {
+              subnetsToScan.add(parts.slice(0, 3).join("."));
+            }
+          }
         }
 
         try {
           const res = await fetch("/api/subnet");
           if (res.ok) {
             const data = await res.json();
-            if (data.subnet && !data.subnet.startsWith("172.")) {
-              subnetsToScan.add(data.subnet);
+            if (data.subnet && typeof data.subnet === "string") {
+              const parts = data.subnet.split(".");
+              if (parts.length === 3 || parts.length === 4) {
+                const first = parseInt(parts[0], 10);
+                const second = parseInt(parts[1], 10);
+                if (!(first === 172 && second >= 16 && second <= 31)) {
+                  subnetsToScan.add(parts.slice(0, 3).join("."));
+                }
+              }
             }
           }
         } catch (e) {
@@ -325,7 +340,7 @@ export const useMiners = create<State>()(
         subnetsToScan.add("192.168.0");
         subnetsToScan.add("10.0.0");
 
-        let allDiscovered: any[] = [];
+        let allDiscovered: Array<{ ip: string; model?: string; live: { th: number; watts?: number; chipTemp?: number; fanSpeed?: number } }> = [];
         for (const subnet of subnetsToScan) {
           try {
             const discovered = await scanLAN(subnet);
@@ -335,9 +350,11 @@ export const useMiners = create<State>()(
           }
         }
 
-        const map = new Map();
+        const map = new Map<string, { ip: string; model?: string; live: { th: number; watts?: number; chipTemp?: number; fanSpeed?: number } }>();
         for (const item of allDiscovered) {
-          map.set(item.ip, item);
+          if (item && item.ip) {
+            map.set(item.ip, item);
+          }
         }
         const discovered = Array.from(map.values());
 
@@ -393,8 +410,8 @@ export const useMiners = create<State>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => backendStorage),
       version: 2,
+      storage: createJSONStorage(() => customStorage),
       // v0→v1: power values and live readings now come from the miner on each poll.
       // v1→v2: powerMin/powerMax/powerTarget now store whole-machine watts (not
       //   scaled per active boards); reset to 0 so the ceiling is re-captured

@@ -1,6 +1,10 @@
 name: Test build (s9pk artifact)
 
 on:
+  push:
+    branches: [main, 'feat/*']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -9,6 +13,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve version from manifest
+        id: ver
+        run: |
+          v=$(grep -oP "blisspoint:\K[0-9]+\.[0-9]+\.[0-9]+" startos/manifest/index.ts | head -1)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Building version $v"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -24,11 +42,65 @@ jobs:
           load: true
           tags: blisspoint:v0.6.0
 
-      - name: Save Docker tar
-        run: docker save blisspoint:v0.6.0 -o /tmp/blisspoint-v0.6.0.tar
+  s9pk:
+    name: Build s9pk & upload artifact
+    runs-on: ubuntu-latest
+    needs: docker
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: blisspoint-v0.6.0-test-package
-          path: /tmp/blisspoint-v0.6.0.tar
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install squashfs-tools-ng
+        run: sudo apt-get update && sudo apt-get install -y squashfs-tools-ng
+
+      - name: Install start-cli
+        run: |
+          curl -fsSL https://start9.com/start-cli/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Initialize packaging workspace
+        run: |
+          cd "$GITHUB_WORKSPACE/.."
+          "$HOME/.local/bin/start-cli" s9pk init-workspace
+
+      - name: Install sdk-build deps
+        run: npm --prefix sdk-build install
+
+      - name: Build SDK JavaScript
+        run: cd sdk-build && npm run build
+
+      - name: Generate developer key
+        run: |
+          mkdir -p ~/.startos
+          openssl genpkey -algorithm Ed25519 -out ~/.startos/id.key.pem
+
+      - name: Pack s9pk
+        run: |
+          echo "127.0.0.1 dev-vm.local" | sudo tee -a /etc/hosts
+          start-cli s9pk pack \
+            --javascript "$GITHUB_WORKSPACE/sdk-build/javascript" \
+            --icon startos/icon.png \
+            --instructions startos/instructions.md \
+            --license LICENSE \
+            --no-assets \
+            -o blisspoint.s9pk
+
+      - name: Inspect manifest
+        run: start-cli s9pk inspect blisspoint.s9pk manifest
+
+      - name: Upload s9pk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blisspoint-${{ needs.docker.outputs.version }}-s9pk
+          path: blisspoint.s9pk
+          retention-days: 14
+          if-no-files-found: error
