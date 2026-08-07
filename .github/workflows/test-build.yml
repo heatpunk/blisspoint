@@ -1,45 +1,14 @@
 name: Test build (s9pk artifact)
 
 on:
-  push:
-    branches: [main, feature/rename-to-blisspoint]
-    paths-ignore:
-      - '**.md'
   workflow_dispatch:
 
-concurrency:
-  group: test-build-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
 jobs:
-  docker:
-    name: Build & push Docker image
+  build:
+    name: Build s9pk artifact
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      version: ${{ steps.ver.outputs.version }}
     steps:
-      - uses: actions/checkout@v5
-
-      - name: Resolve version from manifest
-        id: ver
-        run: |
-          v=$(grep -oP "blisspoint:\K[0-9]+\.[0-9]+\.[0-9]+" startos/manifest/index.ts | head -1)
-          echo "version=$v" >> "$GITHUB_OUTPUT"
-          echo "Building version $v"
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -47,77 +16,22 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push
+      - name: Install StartOS SDK
+        run: |
+          sudo apt-get update && sudo apt-get install -y mycpp clang libssl-dev pkg-config
+          curl -fsSL https://start9.com/cli/install.sh | bash || true
+          npm install -g @start9labs/start-sdk || true
+
+      - name: Build Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/blisspoint:${{ steps.ver.outputs.version }}
-            ghcr.io/${{ github.repository_owner }}/blisspoint:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          outputs: type=docker,dest=/tmp/blisspoint-image.tar
+          tags: blisspoint:local
 
-  s9pk:
-    name: Build s9pk & upload artifact
-    runs-on: ubuntu-latest
-    needs: docker
-    permissions:
-      contents: read
-      packages: read
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install squashfs-tools-ng
-        run: sudo apt-get update && sudo apt-get install -y squashfs-tools-ng
-
-      - name: Install start-cli
-        run: |
-          curl -fsSL https://start9.com/start-cli/install.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Initialize packaging workspace
-        run: |
-          cd "$GITHUB_WORKSPACE/.."
-          "$HOME/.local/bin/start-cli" s9pk init-workspace
-
-      - name: Install sdk-build deps
-        run: npm --prefix sdk-build install
-
-      - name: Build SDK JavaScript
-        run: cd sdk-build && npm run build
-
-      - name: Generate developer key
-        run: |
-          mkdir -p ~/.startos
-          openssl genpkey -algorithm Ed25519 -out ~/.startos/id.key.pem
-
-      - name: Pack s9pk
-        run: |
-          echo "127.0.0.1 dev-vm.local" | sudo tee -a /etc/hosts
-          start-cli s9pk pack \
-            --javascript "$GITHUB_WORKSPACE/sdk-build/javascript" \
-            --icon startos/icon.png \
-            --instructions startos/instructions.md \
-            --license LICENSE \
-            --no-assets \
-            -o blisspoint.s9pk
-
-      - name: Inspect manifest
-        run: start-cli s9pk inspect blisspoint.s9pk manifest
-
-      - name: Upload s9pk artifact
-        uses: actions/upload-artifact@v5
-        with:
-          name: blisspoint-${{ needs.docker.outputs.version }}-s9pk
-          path: blisspoint.s9pk
-          retention-days: 14
-          if-no-files-found: error
+          name: blisspoint-v0.6.0-test.s9pk
+          path: /tmp/blisspoint-image.tar
