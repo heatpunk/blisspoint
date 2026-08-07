@@ -5,7 +5,7 @@ on:
 
 jobs:
   build:
-    name: Build s9pk artifact
+    name: Build test package
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,22 +16,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Install StartOS SDK
-        run: |
-          sudo apt-get update && sudo apt-get install -y mycpp clang libssl-dev pkg-config
-          curl -fsSL https://start9.com/cli/install.sh | bash || true
-          npm install -g @start9labs/start-sdk || true
-
       - name: Build Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
-          outputs: type=docker,dest=/tmp/blisspoint-image.tar
-          tags: blisspoint:local
+          platforms: linux/amd64
+          outputs: type=docker,dest=/tmp/blisspoint-v0.6.0.tar
+          tags: blisspoint:v0.6.0
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: blisspoint-v0.6.0-test.s9pk
-          path: /tmp/blisspoint-image.tar
+          name: blisspoint-v0.6.0-test-package
+          path: /tmp/blisspoint-v0.6.0.tar
