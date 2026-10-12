@@ -1,0 +1,10 @@
+{
+  "name": "thunderhub-startos",
+  "dependencies": {
+    "@start9labs/start-sdk": "3.0.3",
+    "lnd-startos": "github:Start9Labs/lnd-startos#next"
+  },
+  "overrides": {
+    "@start9labs/start-sdk": "$@start9labs/start-sdk"
+  }
+}
