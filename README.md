@@ -9,7 +9,7 @@
 
 Blisspoint turns an ASIC miner into an ordinary appliance: open it on your phone, see how much heat it's making, and slide it up or down. No mining knowledge required. It's made for the people you share a home with — your partner, your kids, a friend — not for the person who set the miner up.
 
-It installs in one tap on **StartOS (Start9)**, with **Umbrel** and **Home Assistant** on the way.
+It installs in one tap on **StartOS (Start9)**, with **Umbrel** on the way.
 
 ## Features
 
