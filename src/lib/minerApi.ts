@@ -27,12 +27,10 @@ export interface MinerSnapshot {
   needPassword: boolean;
 }
 
-export async function fetchMinerStats(ip: string, password?: string): Promise<MinerSnapshot | null> {
+export async function fetchMinerStats(ip: string): Promise<MinerSnapshot | null> {
   try {
     const res = await fetch(`/api/miners/${encodeURIComponent(ip)}/stats`, {
-      // Reads use the open CGMiner API (port 4028) — no password needed. The
-      // header is kept only so a future authenticated read could use it.
-      headers: password ? { 'x-miner-password': password } : {},
+      // Reads use the open CGMiner API (port 4028) — no password needed.
       signal: AbortSignal.timeout(6500),
     });
     if (!res.ok) return null;
@@ -53,12 +51,17 @@ export async function fetchMinerStats(ip: string, password?: string): Promise<Mi
 
 export interface ControlResult { ok: boolean; needPassword?: boolean }
 
-export async function setMinerPowerTarget(ip: string, watts: number, password?: string): Promise<ControlResult> {
+/** Placeholder the server substitutes for a stored password. The browser holds
+ *  this string, never the credential itself. */
+export const STORED_PASSWORD = '__stored__';
+
+export async function setMinerPowerTarget(ip: string, watts: number): Promise<ControlResult> {
   try {
     const res = await fetch(`/api/miners/${encodeURIComponent(ip)}/power`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ watts: Math.round(watts), password: password ?? '' }),
+      // No password: the server injects the stored one before calling the proxy.
+      body: JSON.stringify({ watts: Math.round(watts) }),
       signal: AbortSignal.timeout(15000),
     });
     const data = await res.json().catch(() => ({}));
@@ -68,18 +71,35 @@ export async function setMinerPowerTarget(ip: string, watts: number, password?: 
   }
 }
 
-export async function setMinerPaused(ip: string, paused: boolean, password?: string): Promise<ControlResult> {
+export async function setMinerPaused(ip: string, paused: boolean): Promise<ControlResult> {
   try {
     const res = await fetch(`/api/miners/${encodeURIComponent(ip)}/${paused ? 'pause' : 'resume'}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: password ?? '' }),
+      body: JSON.stringify({}),
       signal: AbortSignal.timeout(15000),
     });
     const data = await res.json().catch(() => ({}));
     return { ok: !!data.ok, needPassword: !!data.needPassword };
   } catch {
     return { ok: false };
+  }
+}
+
+/** Hand a miner control password to the server once. It is stored encrypted and
+ *  never sent back to the browser. */
+export async function saveMinerPassword(ip: string, password: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/miners/${encodeURIComponent(ip)}/password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await res.json().catch(() => ({}));
+    return !!data.ok;
+  } catch {
+    return false;
   }
 }
 

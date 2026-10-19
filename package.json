@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:server": "node --test server/serve.test.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {

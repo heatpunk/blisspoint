@@ -89,6 +89,29 @@ More detail in [proxy-rs/MAPPING.md](proxy-rs/MAPPING.md).
 | `GET /api/scan?subnet=192.168.1` | Scan a `/24` subnet for miners |
 | `GET /api/miners/{ip}/rawdata` | Raw asic-rs data (debug) |
 
+`serve.cjs` adds two routes of its own:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/state` | Saved UI state; stored miner passwords come back as `__stored__` |
+| `POST /api/miners/{ip}/password` | Store a miner control password (encrypted, write-only) |
+
+## Credentials
+
+Miner control passwords (BraiinsOS `root` and similar) are encrypted at rest in
+`/data/state.json` with AES-256-GCM, using a per-install key in
+`/data/secret.key`. The plaintext is never sent to the browser: `GET /api/state`
+returns the placeholder `__stored__`, and `serve.cjs` substitutes the decrypted
+value on `power`, `pause` and `resume` calls just before forwarding to the proxy,
+so the browser never holds a credential it could leak.
+
+State-changing requests (`POST`/`PUT`/`DELETE`) are refused with `403` when they
+arrive from another origin.
+
+The app still has no login of its own: anyone who can reach port 80 can control
+the miners and reset the saved state. Keep the interface on a trusted network,
+or put it behind an authenticating reverse proxy.
+
 ## Development
 
 ```bash
