@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
 import type { Miner, MinerConfig } from "@/lib/types";
-import { fetchMinerStats, scanLAN, setMinerPaused, setMinerPowerTarget } from "@/lib/minerApi";
+import { fetchMinerStats, saveMinerPassword, scanLAN, setMinerPaused, setMinerPowerTarget, STORED_PASSWORD } from "@/lib/minerApi";
 
 const STORAGE_KEY = "blisspoint.state.v2";
 
@@ -115,7 +115,7 @@ export const useMiners = create<State>()(
       commitPowerTarget: async (id) => {
         const m = get().miners.find((x) => x.id === id);
         if (!m || m.config.powerTarget <= 0) return;
-        const res = await setMinerPowerTarget(m.ip, m.config.powerTarget, m.config.apiPassword);
+        const res = await setMinerPowerTarget(m.ip, m.config.powerTarget);
         if (res.needPassword) {
           set({ pwPrompt: { minerId: id, reason: "power" } });
         }
@@ -152,7 +152,7 @@ export const useMiners = create<State>()(
             x.id === id ? { ...x, status: desiredPaused ? "paused" : "mining" } : x
           ),
         }));
-        const res = await setMinerPaused(m.ip, desiredPaused, m.config.apiPassword);
+        const res = await setMinerPaused(m.ip, desiredPaused);
         if (res.needPassword) {
           set((s) => { const i = { ...s.intents }; delete i[id]; return { intents: i, pwPrompt: { minerId: id, reason: "control", paused: desiredPaused } }; });
         } else if (!res.ok) {
@@ -164,6 +164,13 @@ export const useMiners = create<State>()(
         const prompt = get().pwPrompt;
         if (!prompt) return;
         const { minerId, reason, paused } = prompt;
+        const { miners } = get();
+        const target = miners.find((x) => x.id === minerId);
+        if (!target) return;
+        // The server stores the credential encrypted; the browser keeps only the
+        // placeholder, and every control call is finished server-side.
+        const stored = await saveMinerPassword(target.ip, pw);
+        const kept = stored ? STORED_PASSWORD : pw;
         // Store the password and clear any prior dismissal for this miner.
         set((s) => {
           const dismissed = { ...s.pwDismissed };
@@ -172,7 +179,7 @@ export const useMiners = create<State>()(
             pwPrompt: null,
             pwDismissed: dismissed,
             miners: s.miners.map((x) =>
-              x.id === minerId ? { ...x, config: { ...x.config, apiPassword: pw } } : x
+              x.id === minerId ? { ...x, config: { ...x.config, apiPassword: kept } } : x
             ),
           };
         });
@@ -198,7 +205,7 @@ export const useMiners = create<State>()(
         }));
         const m = get().miners.find((x) => x.id === minerId);
         if (m) {
-          const res = await setMinerPaused(m.ip, !!paused, pw);
+          const res = await setMinerPaused(m.ip, !!paused);
           if (res.ok) {
             set((s) => ({
               miners: s.miners.map((x) =>
@@ -230,7 +237,7 @@ export const useMiners = create<State>()(
         const { miners } = get();
         const fetched = await Promise.all(
           miners.map(async (m) => {
-            const snap = await fetchMinerStats(m.ip, m.config.apiPassword);
+            const snap = await fetchMinerStats(m.ip);
             return { id: m.id, snap };
           })
         );
