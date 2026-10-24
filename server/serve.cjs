@@ -1,12 +1,13 @@
 "use strict";
 // Production server for StartOS: serves the built UI (dist/) and reverse-proxies
-// /api/* to the local CGMiner proxy (server/proxy.cjs on 127.0.0.1:8081).
+// /api/* to the local miner proxy (proxy-rs, spawned and supervised below).
 // Also handles /api/state and /api/subnet.
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
+const { spawn } = require("child_process");
 
 const PORT = parseInt(process.env.PORT || "80", 10);
 const PROXY = process.env.PROXY_ORIGIN || "http://127.0.0.1:8081";
@@ -352,7 +353,50 @@ function serveStatic(req, res) {
   });
 }
 
-http.createServer((req, res) => {
+/** proxy-rs supervision: spawn as a child, restart on crash, wait for readiness. */
+const PROXY_BIN = process.env.PROXY_BIN || "/usr/local/bin/proxy-rs";
+let proxyChild = null;
+let shuttingDown = false;
+let listening = false;
+
+function startProxy() {
+  if (shuttingDown) return;
+  proxyChild = spawn(PROXY_BIN, [], { stdio: "inherit" });
+  proxyChild.on("exit", (code, signal) => {
+    proxyChild = null;
+    if (shuttingDown) return;
+    console.error("proxy-rs exited (code=" + code + " signal=" + signal + "), restarting in 1s");
+    setTimeout(startProxy, 1000);
+  });
+  proxyChild.on("error", (err) => {
+    console.error("proxy-rs failed to start:", err.message);
+    if (shuttingDown) return;
+    // A missing or unrunnable binary must fail the container, not restart-loop
+    // with a UI that proxies to nothing.
+    if (err.code === "ENOENT" || err.code === "EACCES") process.exit(1);
+    setTimeout(startProxy, 1000);
+  });
+}
+
+function waitForProxy(ready, tries = 120) {
+  const retry = () => {
+    if (shuttingDown || listening) return;
+    if (tries <= 0) {
+      console.error("proxy-rs unreachable after retries; serving UI anyway");
+      return ready();
+    }
+    setTimeout(() => waitForProxy(ready, tries - 1), 500);
+  };
+  const probe = http.request(new URL("/", PROXY), { timeout: 1000 }, (pres) => {
+    pres.resume();
+    ready();
+  });
+  probe.on("timeout", () => { probe.destroy(); retry(); });
+  probe.on("error", () => retry());
+  probe.end();
+}
+
+const server = http.createServer((req, res) => {
   const uPath = new URL(req.url, "http://x").pathname;
   const mutating = req.method === "POST" || req.method === "PUT" || req.method === "DELETE";
   if (uPath === "/api/state") {
@@ -385,4 +429,22 @@ http.createServer((req, res) => {
     return;
   }
   serveStatic(req, res);
-}).listen(PORT, "0.0.0.0", () => console.log("Blisspoint serving on :" + PORT + " (UI + /api -> " + PROXY + ")"));
+});
+
+startProxy();
+waitForProxy(() => {
+  if (listening) return;
+  listening = true;
+  server.listen(PORT, "0.0.0.0", () => console.log("Blisspoint serving on :" + PORT + " (UI + /api -> " + PROXY + ")"));
+});
+
+// node is PID 1 in the container: without explicit handlers the SIGTERM StartOS
+// sends on stop would never terminate node or the supervised proxy.
+function shutdown(sig) {
+  shuttingDown = true;
+  if (proxyChild) { try { proxyChild.kill(sig); } catch (e) {} }
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 2000).unref();
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
