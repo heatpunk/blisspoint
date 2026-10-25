@@ -171,9 +171,10 @@ Key differences from our SDK 2 manifest: `emulateMissing: false` appears on
 images, and the `source` is just the published tag (StartOS pulls at install).
 `main.ts`, `interfaces.ts`, `backups.ts` port over almost unchanged — thunderhub's
 SDK 3 daemon/subcontainer shape matches our current code (SubContainer from
-`imageId`, `sdk.useEntrypoint()` replaces our explicit `sh -c` command when the
-image has a proper entrypoint; our image uses a shell CMD, so keep the explicit
-command or fix the image CMD first).
+`imageId`, explicit `exec` command; the 0.6.3+ image CMD is
+`["node", "server/serve.cjs"]` with serve.cjs supervising proxy-rs itself, so
+the primary daemon keeps its explicit exec and sets `PROXY_SPAWN=0` to leave
+proxy-rs to the dedicated StartOS daemon).
 
 ### 3.4 Boilerplate file contents (copy exactly from the reference packages)
 
@@ -353,16 +354,7 @@ docker buildx imagetools inspect ghcr.io/heatpunk/blisspoint:0.6.0
 
 ## 6. Known open items
 
-- [ ] `blisspoint-startos` repo does not exist yet (issue #5 asks for it in
-      Start9-Community; decide who creates it — write access to that org required).
-- [ ] SDK 2 → 3 migration of `startos/` (small: manifest shape, Makefile,
-      package.json, tsconfig, drop `sdk-build/`).
-- [ ] StartOS CI needs Start9-side secrets (`DEV_KEY`, S3, registry vars) once
-      the repo is in their org.
-- [ ] Our image CMD is `sh -c 'proxy-rs & node server/serve.cjs'` — SDK 3
-      `sdk.useEntrypoint()` would be cleaner; either keep the explicit exec
-      command in `main.ts` or give the image a real entrypoint first.
-- [ ] PR #5833 (official Umbrel store) has open maintainer feedback (ARM64
-      first-run blockers) — resolve before mirroring new versions there.
-- [ ] The legacy `s9pk` job in this repo's `release.yml` should be removed when
-      `blisspoint-startos` takes over packaging.
+- [ ] PR #5833 (official Umbrel store) is `CHANGES_REQUESTED` awaiting re-review;
+      the ARM64 first-run blockers (single-subnet discovery, custom-password
+      auth) were fixed upstream in 0.5.3 and later. Keep the PR pinned to the
+      latest multi-arch image digest while it re-queues.
