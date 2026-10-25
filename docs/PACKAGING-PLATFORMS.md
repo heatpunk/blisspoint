@@ -44,7 +44,7 @@ versioning it. Everything else reads that image.
 
 1. Tag `vX.Y.Z` (or manual `workflow_dispatch` with version input).
 2. `docker` job: buildx builds `linux/amd64,linux/arm64` from the root
-   `Dockerfile` (rust:alpine proxy-rs stage + node:20 UI stage), pushes
+   `Dockerfile` (rust:alpine proxy-rs stage + node:24 UI stage), pushes
    `ghcr.io/heatpunk/blisspoint:X.Y.Z` plus semver tags.
 3. `s9pk` job: packs a legacy SDK 2 s9pk from `sdk-build/` — **this job dies when
    the StartOS package moves to its own repo.**

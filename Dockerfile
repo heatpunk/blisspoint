@@ -16,7 +16,7 @@ RUN cp "$(find /build/proxy-rs/target/release -maxdepth 1 -name proxy-rs -type f
 # Stage 2: build the Vite/React UI to static assets.
 # dist/ is architecture-independent, so always build on the runner's native
 # platform ($BUILDPLATFORM) instead of emulating — much faster for arm64.
-FROM --platform=$BUILDPLATFORM node:20-alpine AS build
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -25,12 +25,19 @@ RUN npm run build
 
 # Stage 3: runtime — Node.js serves dist/ and reverse-proxies /api/* to :8081;
 #           proxy-rs (Rust, asic-rs) handles the actual miner communication on :8081.
-FROM node:20-alpine
+FROM node:24-alpine
 WORKDIR /app
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/server ./server
 COPY --from=rust-build /usr/local/bin/proxy-rs /usr/local/bin/proxy-rs
 RUN chmod +x /usr/local/bin/proxy-rs
+# October 2026 security baseline: refresh the system CA bundle and refuse the
+# build if the compromised eMudhra root is still trusted.
+RUN apk upgrade --no-cache ca-certificates-bundle \
+ && ! grep -q MIICTjCCAdOgAwIBAgIKPPYHqWhwDtqLhDAKBggqhkjOPQQDAzBr /etc/ssl/certs/ca-certificates.crt
 ENV PORT=80
 EXPOSE 80
-CMD ["sh","-c","proxy-rs & node server/serve.cjs"]
+# serve.cjs spawns and supervises proxy-rs as a child process, so a proxy crash
+# is restarted instead of leaving an unmanaged background process. StartOS sets
+# PROXY_SPAWN=0 and runs proxy-rs as its own daemon.
+CMD ["node", "server/serve.cjs"]
