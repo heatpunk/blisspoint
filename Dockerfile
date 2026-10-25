@@ -38,5 +38,6 @@ RUN apk upgrade --no-cache ca-certificates-bundle \
 ENV PORT=80
 EXPOSE 80
 # serve.cjs spawns and supervises proxy-rs as a child process, so a proxy crash
-# is restarted instead of leaving an unmanaged background process.
+# is restarted instead of leaving an unmanaged background process. StartOS sets
+# PROXY_SPAWN=0 and runs proxy-rs as its own daemon.
 CMD ["node", "server/serve.cjs"]

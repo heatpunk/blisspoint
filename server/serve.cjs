@@ -355,12 +355,16 @@ function serveStatic(req, res) {
 
 /** proxy-rs supervision: spawn as a child, restart on crash, wait for readiness. */
 const PROXY_BIN = process.env.PROXY_BIN || "/usr/local/bin/proxy-rs";
+// Plain Docker (umbrel, raw image) runs node as PID 1, so serve.cjs supervises
+// proxy-rs itself. StartOS instead runs proxy-rs as its own daemon from
+// startos/main.ts and sets PROXY_SPAWN=0 here, so the two never race for :8081.
+const SUPERVISE_PROXY = process.env.PROXY_SPAWN !== "0";
 let proxyChild = null;
 let shuttingDown = false;
 let listening = false;
 
 function startProxy() {
-  if (shuttingDown) return;
+  if (shuttingDown || !SUPERVISE_PROXY) return;
   proxyChild = spawn(PROXY_BIN, [], { stdio: "inherit" });
   proxyChild.on("exit", (code, signal) => {
     proxyChild = null;
@@ -431,7 +435,7 @@ const server = http.createServer((req, res) => {
   serveStatic(req, res);
 });
 
-startProxy();
+if (SUPERVISE_PROXY) startProxy();
 waitForProxy(() => {
   if (listening) return;
   listening = true;
