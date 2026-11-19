@@ -2,7 +2,7 @@ manifestVersion: 1
 id: blisspoint
 category: bitcoin
 name: Blisspoint
-version: "0.6.0"
+version: "0.6.4"
 tagline: Run your ASIC miner as a space heater
 description: >-
   Blisspoint turns a Bitcoin ASIC miner into an ordinary household appliance:
@@ -34,6 +34,10 @@ defaultPassword: ""
 submitter: heatpunk
 submission: https://github.com/getumbrel/umbrel-apps
 releaseNotes: >-
-  The real Blisspoint icon now shows everywhere, clearer start-screen
-  instruction, and board count no longer flickers during power-target
-  cool-down.
+  Power targets now show exact watts on small machines like Bitaxe (under
+  500 W), so a 120 W heater reads 120 W instead of 100 W. Big ASICs keep
+  the familiar 50 W steps.
+
+  Also includes 0.6.1–0.6.3: miner passwords stay server-side, Node 24
+  with the October 2026 security fixes, refreshed CA trust store, and a
+  supervised proxy that restarts itself on crash.
