@@ -6,6 +6,7 @@
 use asic_rs_core::data::{
     hashrate::HashRateUnit,
     miner::{MinerData, TuningTarget},
+    operating_state::OperatingState,
 };
 use serde::{Deserialize, Serialize};
 
@@ -282,7 +283,10 @@ pub fn map_miner_data(data: &MinerData) -> StatsResponse {
             boards,
         },
         model,
-        paused: !data.is_mining,
+        // Bitaxe/AxeOS keeps is_mining=true while paused (asic-rs default
+        // GetIsMining); the explicit operating_state carries miningPaused.
+        paused: !data.is_mining
+            || matches!(data.operating_state, Some(OperatingState::Paused {})),
         need_password: false,
     }
 }
@@ -342,7 +346,7 @@ mod tests {
             hashrate: hashrate_th.map(|v| HashRate {
                 value: v,
                 unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }),
             expected_hashrate: None,
             board_temperature: None,
@@ -382,7 +386,7 @@ mod tests {
             hashrate: hashrate_th.map(|v| HashRate {
                 value: v,
                 unit: HashRateUnit::TeraHash,
-                algo: "SHA256".to_string(),
+                algo: HashAlgorithm::SHA256,
             }),
             expected_hashrate: None,
             expected_chips: Some(228),
@@ -410,6 +414,11 @@ mod tests {
             messages: vec![],
             uptime: Some(Duration::from_secs(3600)),
             is_mining: true,
+            operating_state: None,
+            devfee_connected: None,
+            psus: None,
+            best_share: None,
+            session_best_share: None,
             pools: vec![],
         }
     }
@@ -465,6 +474,32 @@ mod tests {
         assert_eq!(r.live.fan_speed, Some(0));
         // No active boards (all active=false) → boards=None
         assert!(r.config.boards.is_none());
+    }
+
+    // (b2) Bitaxe/AxeOS paused: is_mining stays true (asic-rs default
+    // GetIsMining), but operating_state=Paused from the miningPaused field.
+    // Regression for the play/pause button on AxeOS >= 2.14.
+    #[test]
+    fn test_bitaxe_paused_via_operating_state() {
+        let boards = vec![make_board(Some(true), Some(0.0), Some(45.0))];
+        let mut data = base_data(Some(0.0), Some(15.0), boards, vec![3000.0], None);
+        data.is_mining = true;
+        data.operating_state = Some(OperatingState::Paused {});
+
+        let r = map_miner_data(&data);
+        assert!(r.paused, "operating_state=Paused must map to paused:true even when is_mining=true");
+    }
+
+    // (b3) Bitaxe mining: operating_state=Mining, is_mining=true → not paused.
+    #[test]
+    fn test_bitaxe_mining_via_operating_state() {
+        let boards = vec![make_board(Some(true), Some(0.5), Some(55.0))];
+        let mut data = base_data(Some(0.5), Some(15.0), boards, vec![3000.0], None);
+        data.is_mining = true;
+        data.operating_state = Some(OperatingState::Mining {});
+
+        let r = map_miner_data(&data);
+        assert!(!r.paused);
     }
 
     // (c) One board removed: active=2, total=3
@@ -545,7 +580,7 @@ mod tests {
         data.hashrate = Some(HashRate {
             value: 95000.0,
             unit: HashRateUnit::GigaHash,
-            algo: "SHA256".to_string(),
+            algo: HashAlgorithm::SHA256,
         });
 
         let r = map_miner_data(&data);
