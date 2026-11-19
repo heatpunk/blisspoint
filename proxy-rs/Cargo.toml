@@ -8,7 +8,7 @@ name = "proxy-rs"
 path = "src/main.rs"
 
 [dependencies]
-asic-rs = { version = "0.7.2", features = [
+asic-rs = { version = "0.8.10", features = [
     "antminer",
     "braiins",
     "whatsminer",
@@ -23,7 +23,7 @@ asic-rs = { version = "0.7.2", features = [
     "nerdaxe",
     "sealminer",
 ] }
-asic-rs-core = "0.7.2"
+asic-rs-core = "0.8.10"
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.8", features = ["http1"] }
 serde = { version = "1", features = ["derive"] }
