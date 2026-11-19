@@ -40,4 +40,20 @@ describe("axisLabels", () => {
       expect(bottom).toBeLessThanOrEqual(min);
     }
   });
+
+  it("Bitaxe class (issue #84): sub-500 W scale uses exact-watt ticks", () => {
+    // 120 W machine: ticks must not snap to a 50 W grid (0 / 50 / 100 / 150).
+    const { top, mid, bottom } = axisLabels(0, 120);
+    expect(bottom).toBe(0);
+    expect(mid).toBe(60);
+    expect(top).toBe(120);
+  });
+
+  it("small-machine ticks still bracket the band", () => {
+    const { top, bottom } = axisLabels(37, 175);
+    expect(top).toBeGreaterThanOrEqual(175);
+    expect(bottom).toBeLessThanOrEqual(37);
+    expect(top).toBe(175);
+    expect(bottom).toBe(37);
+  });
 });

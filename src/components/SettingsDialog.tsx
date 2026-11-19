@@ -94,7 +94,7 @@ export function SettingsDialog({ open, onOpenChange, minerId }: Props) {
             </div>
             <p className="text-[10px] text-muted-foreground/70 leading-snug">
               {miner.boards
-                ? `${miner.boards.active} / ${miner.boards.total} hashboards active — Max = machine target ÷ ${miner.boards.total} × ${miner.boards.active}, to the nearest 50 W. Never higher.`
+                ? `${miner.boards.active} / ${miner.boards.total} hashboards active — Max = machine target ÷ ${miner.boards.total} × ${miner.boards.active}${miner.config.powerMax > 0 && miner.config.powerMax < 500 ? ", exact watts" : ", to the nearest 50 W"}. Never higher.`
                 : "Scaled to the active hashboards"}
             </p>
             <div className="grid grid-cols-2 gap-3">
