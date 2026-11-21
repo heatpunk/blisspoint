@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMiners } from "@/store/miners";
 import {
   Dialog,
@@ -29,12 +29,18 @@ export function SettingsDialog({ open, onOpenChange, minerId }: Props) {
 
   const [name, setName] = useState("");
   const [ip, setIp] = useState("");
+  const [prevKey, setPrevKey] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!miner) return;
-    setName(miner.config.name);
-    setIp(miner.ip);
-  }, [miner?.id, open]);
+  // Sync fields when the dialog opens for a (different) miner. Render-phase
+  // adjustment instead of setState-in-effect (react-hooks 7 lint rule).
+  const key = miner && open ? `${miner.id}:${open}` : null;
+  if (key !== prevKey) {
+    setPrevKey(key);
+    if (miner && open) {
+      setName(miner.config.name);
+      setIp(miner.ip);
+    }
+  }
 
   if (!miner) return null;
 

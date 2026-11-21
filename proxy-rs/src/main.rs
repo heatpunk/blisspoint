@@ -397,8 +397,16 @@ async fn scan_lan(Query(params): Query<ScanParams>) -> Response {
     // subnet is expected to be in "a.b.c" form (three octets).
     let range_str = format!("{}.1-254", subnet);
 
+    // LAN scan tuning (asic-rs 0.8.10):
+    // - Adaptive concurrency (default 1000 for a /24) probes all hosts at once
+    //   instead of the old artificial cap of 20, which serialized 254 IPs into
+    //   ~13 waves and made a dead-subnet scan take ~60s+.
+    // - Zero connectivity retries: on a LAN a dead IP will not appear mid-scan;
+    //   the default 3 retries with backoff added ~3.7s per dead host for nothing.
+    // - Identification timeout stays at the library default (10s) so live hosts
+    //   that answer slowly are still discovered.
     let factory = match MinerFactory::from_range(&range_str) {
-        Ok(f) => f.with_concurrent_limit(20),
+        Ok(f) => f.with_connectivity_retries(0),
         Err(e) => {
             return err_json(
                 StatusCode::BAD_REQUEST,
@@ -407,12 +415,30 @@ async fn scan_lan(Query(params): Query<ScanParams>) -> Response {
         }
     };
 
-    let mut miners = Vec::new();
+    // Collect discovered miners from the stream, then fetch their data
+    // concurrently. The old code awaited get_data() sequentially inside the
+    // loop, blocking discovery of remaining IPs behind each miner's telemetry
+    // read.
+    let mut discovered = Vec::new();
     let mut stream = factory.scan_stream();
-
     while let Some(miner) = stream.next().await {
-        let data = miner.get_data().await;
-        miners.push(map_scan_entry(&data));
+        discovered.push(miner);
+    }
+
+    // Fetch telemetry concurrently via spawned tasks (avoids HRTB lifetime
+    // issues with buffer_unordered over Box<dyn Miner>).
+    let mut handles = Vec::new();
+    for miner in discovered {
+        handles.push(tokio::spawn(async move {
+            let data = miner.get_data().await;
+            map_scan_entry(&data)
+        }));
+    }
+    let mut miners = Vec::new();
+    for h in handles {
+        if let Ok(entry) = h.await {
+            miners.push(entry);
+        }
     }
 
     ok_json(&json!({ "ok": true, "miners": miners }))

@@ -1,4 +1,4 @@
-import { NavLink as RouterNavLink, NavLinkProps } from "react-router-dom";
+import { NavLink as RouterNavLink, type NavLinkProps, type NavLinkRenderProps } from "react-router";
 import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +14,7 @@ const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
       <RouterNavLink
         ref={ref}
         to={to}
-        className={({ isActive, isPending }) =>
+        className={({ isActive, isPending }: NavLinkRenderProps) =>
           cn(className, isActive && activeClassName, isPending && pendingClassName)
         }
         {...props}
