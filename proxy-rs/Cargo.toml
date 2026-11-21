@@ -24,19 +24,19 @@ asic-rs = { version = "0.8.10", features = [
     "sealminer",
 ] }
 asic-rs-core = "0.8.10"
-tokio = { version = "1", features = ["full"] }
-axum = { version = "0.8", features = ["http1"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tower-http = { version = "0.6", features = ["cors"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-regex = "1"
-futures = "0.3"
-measurements = "0.11"
-anyhow = "1"
+tokio = { version = "1.54", features = ["full"] }
+axum = { version = "0.8.9", features = ["http1"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tower-http = { version = "0.7", features = ["cors"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+regex = "1.13"
+futures = "0.3.34"
+measurements = "0.11.1"
+anyhow = "1.0.104"
 
 [dev-dependencies]
-axum-test = "17"
-tokio = { version = "1", features = ["full"] }
-tower = { version = "0.5", features = ["util"] }
+axum-test = "21"
+tokio = { version = "1.54", features = ["full"] }
+tower = { version = "0.5.3", features = ["util"] }

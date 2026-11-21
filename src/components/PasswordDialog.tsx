@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMiners } from "@/store/miners";
 import {
   Dialog,
@@ -15,10 +15,14 @@ export function PasswordDialog() {
   const submit = useMiners((s) => s.submitMinerPassword);
   const dismiss = useMiners((s) => s.dismissPwPrompt);
   const [pw, setPw] = useState("");
+  const [prevPrompt, setPrevPrompt] = useState(pwPrompt);
 
-  useEffect(() => {
+  // Reset the field when a new prompt opens (render-phase state adjustment,
+  // the React-recommended alternative to setState-in-effect).
+  if (pwPrompt !== prevPrompt) {
+    setPrevPrompt(pwPrompt);
     if (pwPrompt) setPw("");
-  }, [pwPrompt]);
+  }
 
   return (
     <Dialog open={!!pwPrompt} onOpenChange={(o) => { if (!o) dismiss(); }}>
