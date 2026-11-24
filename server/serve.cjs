@@ -6,6 +6,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const { scanSubnets } = require("./subnets.cjs");
 const crypto = require("crypto");
 const { spawn } = require("child_process");
 
@@ -421,7 +422,7 @@ const server = http.createServer((req, res) => {
   }
   if (uPath === "/api/subnet") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    return res.end(JSON.stringify({ subnet: getLocalSubnet() }));
+    return res.end(JSON.stringify({ subnet: getLocalSubnet(), subnets: scanSubnets(os.networkInterfaces()) }));
   }
   if (req.url.startsWith("/api/")) {
     const preq = http.request(new URL(req.url, PROXY), { method: req.method, headers: req.headers }, (pres) => {

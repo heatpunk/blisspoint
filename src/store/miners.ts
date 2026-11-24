@@ -310,25 +310,17 @@ export const useMiners = create<State>()(
 
       scan: async () => {
         set({ scanning: true });
-        const { miners } = get();
         const subnetsToScan = new Set<string>();
-
-        if (miners[0]?.ip) {
-          const parts = miners[0].ip.split(".");
-          if (parts.length === 4) {
-            const first = parseInt(parts[0], 10);
-            const second = parseInt(parts[1], 10);
-            if (!(first === 172 && second >= 16 && second <= 31)) {
-              subnetsToScan.add(parts.slice(0, 3).join("."));
-            }
-          }
-        }
 
         try {
           const res = await fetch("/api/subnet");
           if (res.ok) {
             const data = await res.json();
-            if (data.subnet && typeof data.subnet === "string") {
+            if (Array.isArray(data.subnets) && data.subnets.length > 0) {
+              for (const subnet of data.subnets) {
+                if (typeof subnet === "string") subnetsToScan.add(subnet);
+              }
+            } else if (data.subnet && typeof data.subnet === "string") {
               const parts = data.subnet.split(".");
               if (parts.length === 3 || parts.length === 4) {
                 const first = parseInt(parts[0], 10);
@@ -342,10 +334,6 @@ export const useMiners = create<State>()(
         } catch (e) {
           console.error(e);
         }
-
-        subnetsToScan.add("192.168.1");
-        subnetsToScan.add("192.168.0");
-        subnetsToScan.add("10.0.0");
 
         let allDiscovered: Array<{ ip: string; model?: string; live: { th: number; watts?: number; chipTemp?: number; fanSpeed?: number } }> = [];
         for (const subnet of subnetsToScan) {
