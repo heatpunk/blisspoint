@@ -10,7 +10,7 @@
 //!   POST /api/miners/{ip}/resume
 //!   POST /api/miners/{ip}/power
 //!   GET  /api/miners/{ip}/rawdata
-//!   GET  /api/scan?subnet=192.168.1
+//!   GET  /api/scan?subnet=192.168.1.0/24
 
 mod map;
 
@@ -380,7 +380,7 @@ async fn miner_rawdata(State(state): State<AppState>, Path(ip): Path<String>) ->
 }
 
 // ---------------------------------------------------------------------------
-// Route: GET /api/scan?subnet=192.168.1
+// Route: GET /api/scan?subnet=192.168.1.0/24
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
@@ -393,9 +393,14 @@ async fn scan_lan(Query(params): Query<ScanParams>) -> Response {
         .subnet
         .unwrap_or_else(|| "192.168.1".to_string());
 
-    // Build a /24-style range: subnet.1 – subnet.254
-    // subnet is expected to be in "a.b.c" form (three octets).
-    let range_str = format!("{}.1-254", subnet);
+    // Delegate CIDR and octet-range parsing to asic-rs, retaining legacy a.b.c queries.
+    let factory = if subnet.contains('/') {
+        MinerFactory::from_subnet(&subnet)
+    } else if subnet.split('.').count() == 3 {
+        MinerFactory::from_range(&format!("{subnet}.1-254"))
+    } else {
+        MinerFactory::from_range(&subnet)
+    };
 
     // LAN scan tuning (asic-rs 0.8.10):
     // - Adaptive concurrency (default 1000 for a /24) probes all hosts at once
@@ -405,7 +410,7 @@ async fn scan_lan(Query(params): Query<ScanParams>) -> Response {
     //   the default 3 retries with backoff added ~3.7s per dead host for nothing.
     // - Identification timeout stays at the library default (10s) so live hosts
     //   that answer slowly are still discovered.
-    let factory = match MinerFactory::from_range(&range_str) {
+    let factory = match factory {
         Ok(f) => f.with_connectivity_retries(0),
         Err(e) => {
             return err_json(

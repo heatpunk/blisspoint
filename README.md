@@ -86,7 +86,7 @@ More detail in [proxy-rs/MAPPING.md](proxy-rs/MAPPING.md).
 | `POST /api/miners/{ip}/power` | Set the whole-machine power target |
 | `POST /api/miners/{ip}/pause` | Pause mining |
 | `POST /api/miners/{ip}/resume` | Resume mining |
-| `GET /api/scan?subnet=192.168.1` | Scan a `/24` subnet for miners |
+| `GET /api/scan?subnet=10.0.0.0/20` | Scan a CIDR subnet or asic-rs IPv4 octet range; legacy `a.b.c` prefixes remain supported |
 | `GET /api/miners/{ip}/rawdata` | Raw asic-rs data (debug) |
 
 `serve.cjs` adds two routes of its own:
