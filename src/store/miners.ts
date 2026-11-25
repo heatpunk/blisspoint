@@ -72,10 +72,30 @@ interface State {
   dismissPwPrompt: () => void;
   removeMiner: (id: string) => void;
   scan: () => Promise<void>;
+  /** Add a miner by IP, or scan an arbitrary CIDR, from manual input.
+   *  Returns a short status code for the UI. */
+  addManual: (input: string) => Promise<"added" | "scanned" | "notfound" | "invalid">;
   /** Poll live data from the real miner API via the local proxy */
   pollLive: () => Promise<void>;
   /** Smooth animation tick (1 s) — lerps toward current target/live values */
   _tick: () => void;
+}
+
+
+function toMiner(d: { ip: string; model?: string; live: { th: number; watts?: number; chipTemp?: number; fanSpeed?: number } }, i: number): Miner {
+  return {
+    id: `disc-${Date.now()}-${i}`,
+    ip: d.ip,
+    model: d.model ?? "Unknown",
+    status: "mining" as const,
+    config: { name: d.ip, powerMin: 0, powerMax: 0, powerTarget: 0 },
+    live: {
+      th: d.live.th,
+      watts: d.live.watts ?? 0,
+      chipTemp: d.live.chipTemp ?? 0,
+      fanSpeed: d.live.fanSpeed ?? 0,
+    },
+  };
 }
 
 export const useMiners = create<State>()(
@@ -310,24 +330,39 @@ export const useMiners = create<State>()(
 
       scan: async () => {
         set({ scanning: true });
-        const subnetsToScan = new Set<string>();
+        // The container cannot see the host's interfaces, so interface
+        // auto-detection is useless on StartOS. Scan the two ranges home
+        // users actually have (192.168.0-7.x and 10.0.0-7.x, i.e. /21 each);
+        // anything else is one manual CIDR entry away. Saved miners outside
+        // those ranges get their own /24; docker ranges (172.16-31.x) are
+        // never scanned.
+        const subnetsToScan = new Set<string>(["192.168.0.0/21", "10.0.0.0/21"]);
+        const isDockerRange = (cidr: string) => {
+          const m = cidr.match(/^(\d+)\.(\d+)\./);
+          return !!m && +m[1] === 172 && +m[2] >= 16 && +m[2] <= 31;
+        };
+
+        for (const m of get().miners) {
+          const first = m.ip.split(".");
+          if (first.length === 4) {
+            const a = +first[0], b = +first[1];
+            const covered =
+              (a === 192 && b === 168 && +first[2] <= 7) ||
+              (a === 10 && b === 0 && +first[2] <= 7);
+            if (!covered && !isDockerRange(m.ip)) subnetsToScan.add(first.slice(0, 3).join("."));
+          }
+        }
 
         try {
           const res = await fetch("/api/subnet");
           if (res.ok) {
             const data = await res.json();
-            if (Array.isArray(data.subnets) && data.subnets.length > 0) {
-              for (const subnet of data.subnets) {
-                if (typeof subnet === "string") subnetsToScan.add(subnet);
-              }
-            } else if (data.subnet && typeof data.subnet === "string") {
-              const parts = data.subnet.split(".");
-              if (parts.length === 3 || parts.length === 4) {
-                const first = parseInt(parts[0], 10);
-                const second = parseInt(parts[1], 10);
-                if (!(first === 172 && second >= 16 && second <= 31)) {
-                  subnetsToScan.add(parts.slice(0, 3).join("."));
-                }
+            const candidates: string[] = [];
+            if (Array.isArray(data.subnets)) candidates.push(...data.subnets);
+            else if (typeof data.subnet === "string") candidates.push(data.subnet);
+            for (const c of candidates) {
+              if (typeof c === "string" && !isDockerRange(c)) {
+                subnetsToScan.add(c.includes("/") ? c : c.split(".").slice(0, 3).join("."));
               }
             }
           }
@@ -357,26 +392,53 @@ export const useMiners = create<State>()(
           const existingIps = new Set(s.miners.map((m) => m.ip));
           const newMiners: Miner[] = discovered
             .filter((d) => !existingIps.has(d.ip))
-            .map((d, i) => ({
-              id: `disc-${Date.now()}-${i}`,
-              ip: d.ip,
-              model: d.model,
-              status: "mining" as const,
-              config: {
-                name: d.ip,
-                powerMin: 0,
-                powerMax: 0,
-                powerTarget: 0,
-              },
-              live: {
-                th: d.live.th,
-                watts: d.live.watts ?? 0,
-                chipTemp: d.live.chipTemp ?? 0,
-                fanSpeed: d.live.fanSpeed ?? 0,
-              },
-            }));
+            .map((d, i) => toMiner(d, i));
           return { scanning: false, miners: [...s.miners, ...newMiners] };
         });
+      },
+
+      addManual: async (input) => {
+        const v = input.trim();
+        const cidr = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/;
+        const ipRe = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+        const validOctets = (m: RegExpMatchArray) => [1, 2, 3, 4].every((i) => +m[i] <= 255);
+
+        const mCidr = v.match(cidr);
+        if (mCidr && validOctets(mCidr) && +mCidr[5] >= 8 && +mCidr[5] <= 32) {
+          set({ scanning: true });
+          try {
+            const discovered = await scanLAN(v);
+            set((s) => {
+              const existing = new Set(s.miners.map((m) => m.ip));
+              const fresh = discovered.filter((d) => d.ip && !existing.has(d.ip)).map((d, i) => toMiner(d, i));
+              return { scanning: false, miners: [...s.miners, ...fresh] };
+            });
+            return "scanned";
+          } catch {
+            set({ scanning: false });
+            return "invalid";
+          }
+        }
+
+        const mIp = v.match(ipRe);
+        if (mIp && validOctets(mIp)) {
+          const snap = await fetchMinerStats(v);
+          if (!snap) return "notfound";
+          set((s) => {
+            if (s.miners.some((m) => m.ip === v)) return {};
+            const miner = toMiner(
+              { ip: v, live: snap.live },
+              0
+            );
+            return {
+              miners: [...s.miners, miner],
+              selectedId: s.selectedId ?? miner.id,
+            };
+          });
+          return "added";
+        }
+
+        return "invalid";
       },
 
       _tick: () => {
