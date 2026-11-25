@@ -31,7 +31,10 @@ export async function fetchMinerStats(ip: string): Promise<MinerSnapshot | null>
   try {
     const res = await fetch(`/api/miners/${encodeURIComponent(ip)}/stats`, {
       // Reads use the open CGMiner API (port 4028) — no password needed.
-      signal: AbortSignal.timeout(6500),
+      // asic-rs identification alone can take up to ~10s on a slow/dead
+      // address; a shorter timeout than the proxy's own discovery timeout
+      // guarantees the UI never sees a valid answer.
+      signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -112,15 +115,12 @@ export async function proxyHealthy(): Promise<boolean> {
   }
 }
 
-export async function scanLAN(subnet: string, timeoutMs = 300_000): Promise<DiscoveredMiner[]> {
-  try {
-    const res = await fetch(`/api/scan?subnet=${encodeURIComponent(subnet)}`, {
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.ok ? (data.miners as DiscoveredMiner[]) : [];
-  } catch {
-    return [];
-  }
+export async function scanLAN(subnet: string, timeoutMs = 120_000): Promise<DiscoveredMiner[]> {
+  const res = await fetch(`/api/scan?subnet=${encodeURIComponent(subnet)}`, {
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!res.ok) throw new Error(`scan failed: HTTP ${res.status}`);
+  const data = await res.json();
+  if (!data?.ok) throw new Error(data?.error || 'scan failed');
+  return data.miners as DiscoveredMiner[];
 }

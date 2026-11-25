@@ -74,7 +74,7 @@ interface State {
   scan: () => Promise<void>;
   /** Add a miner by IP, or scan an arbitrary CIDR, from manual input.
    *  Returns a short status code for the UI. */
-  addManual: (input: string) => Promise<"added" | "scanned" | "notfound" | "invalid">;
+  addManual: (input: string) => Promise<"added" | "scanned" | "notfound" | "invalid" | "failed" | "exists">;
   /** Poll live data from the real miner API via the local proxy */
   pollLive: () => Promise<void>;
   /** Smooth animation tick (1 s) — lerps toward current target/live values */
@@ -82,9 +82,9 @@ interface State {
 }
 
 
-function toMiner(d: { ip: string; model?: string; live: { th: number; watts?: number; chipTemp?: number; fanSpeed?: number } }, i: number): Miner {
+function toMiner(d: { ip: string; model?: string; live: { th: number; watts?: number; chipTemp?: number; fanSpeed?: number } }): Miner {
   return {
-    id: `disc-${Date.now()}-${i}`,
+    id: globalThis.crypto?.randomUUID?.() ?? `disc-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     ip: d.ip,
     model: d.model ?? "Unknown",
     status: "mining" as const,
@@ -370,15 +370,15 @@ export const useMiners = create<State>()(
           console.error(e);
         }
 
-        let allDiscovered: Array<{ ip: string; model?: string; live: { th: number; watts?: number; chipTemp?: number; fanSpeed?: number } }> = [];
-        for (const subnet of subnetsToScan) {
-          try {
-            const discovered = await scanLAN(subnet);
-            allDiscovered = [...allDiscovered, ...discovered];
-          } catch (e) {
-            console.error(e);
+        const subnetList = Array.from(subnetsToScan);
+        const scanResults = await Promise.allSettled(subnetList.map((subnet) => scanLAN(subnet)));
+        const allDiscovered = scanResults.flatMap((r, i) => {
+          if (r.status === "rejected") {
+            console.error(`scan of ${subnetList[i]} failed`, r.reason);
+            return [];
           }
-        }
+          return r.value;
+        });
 
         const map = new Map<string, { ip: string; model?: string; live: { th: number; watts?: number; chipTemp?: number; fanSpeed?: number } }>();
         for (const item of allDiscovered) {
@@ -392,7 +392,7 @@ export const useMiners = create<State>()(
           const existingIps = new Set(s.miners.map((m) => m.ip));
           const newMiners: Miner[] = discovered
             .filter((d) => !existingIps.has(d.ip))
-            .map((d, i) => toMiner(d, i));
+            .map((d) => toMiner(d));
           return { scanning: false, miners: [...s.miners, ...newMiners] };
         });
       },
@@ -403,33 +403,39 @@ export const useMiners = create<State>()(
         const ipRe = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
         const validOctets = (m: RegExpMatchArray) => [1, 2, 3, 4].every((i) => +m[i] <= 255);
 
+        const isPrivateV4 = (a: number, b: number) =>
+          a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
         const mCidr = v.match(cidr);
-        if (mCidr && validOctets(mCidr) && +mCidr[5] >= 8 && +mCidr[5] <= 32) {
+        if (mCidr && validOctets(mCidr)) {
+          const prefix = +mCidr[5];
+          const [a, b] = [+mCidr[1], +mCidr[2]];
+          // Cap manual scans at /21 (2048 hosts, same as the built-in scan) and
+          // require private ranges — a dropdown must never be a scan amplifier.
+          if (prefix < 21 || prefix > 32 || !isPrivateV4(a, b)) {
+            return "invalid";
+          }
           set({ scanning: true });
           try {
             const discovered = await scanLAN(v);
             set((s) => {
               const existing = new Set(s.miners.map((m) => m.ip));
-              const fresh = discovered.filter((d) => d.ip && !existing.has(d.ip)).map((d, i) => toMiner(d, i));
+              const fresh = discovered.filter((d) => d.ip && !existing.has(d.ip)).map((d) => toMiner(d));
               return { scanning: false, miners: [...s.miners, ...fresh] };
             });
             return "scanned";
           } catch {
             set({ scanning: false });
-            return "invalid";
+            return "failed";
           }
         }
 
         const mIp = v.match(ipRe);
         if (mIp && validOctets(mIp)) {
+          if (get().miners.some((m) => m.ip === v)) return "exists";
           const snap = await fetchMinerStats(v);
           if (!snap) return "notfound";
           set((s) => {
-            if (s.miners.some((m) => m.ip === v)) return {};
-            const miner = toMiner(
-              { ip: v, live: snap.live },
-              0
-            );
+            const miner = toMiner({ ip: v, live: snap.live });
             return {
               miners: [...s.miners, miner],
               selectedId: s.selectedId ?? miner.id,

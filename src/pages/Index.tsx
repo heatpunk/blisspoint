@@ -69,7 +69,7 @@ const Index = () => {
   }
 
   const wth =
-    miner.live.th > 0.5
+    miner.live.th > 0.5 && miner.live.watts != null
       ? (miner.live.watts / miner.live.th).toFixed(1)
       : "—";
   const intent = intents[miner.id];
@@ -89,10 +89,10 @@ const Index = () => {
       {/* Live readouts */}
       <header className="px-4 sm:px-8 pt-2 pb-0 shrink-0">
         <div className="flex items-center justify-center flex-wrap gap-x-5 gap-y-0 max-w-3xl mx-auto opacity-70">
-          <Readout label="W" value={Math.round(miner.live.watts).toString()} />
+          <Readout label="W" value={miner.live.watts != null ? Math.round(miner.live.watts).toString() : "—"} />
           <Readout label="TH/s" value={miner.live.th.toFixed(1)} />
           <Readout label="W/TH" value={wth} />
-          <Readout label="°C" value={Math.round(miner.live.chipTemp).toString()} />
+          <Readout label="°C" value={miner.live.chipTemp != null ? Math.round(miner.live.chipTemp).toString() : "—"} />
         </div>
       </header>
 
@@ -121,6 +121,15 @@ const Index = () => {
                   onCommit={() => commitPowerTarget(miner.id)}
                   disabled={paused}
                 />
+              ) : miner.online ? (
+                <div className="h-full flex flex-col items-center justify-center gap-2 text-center px-2">
+                  <span className="text-[11px] tracking-display uppercase text-muted-foreground">
+                    No power control
+                  </span>
+                  <span className="text-[10px] leading-snug text-muted-foreground/75">
+                    This miner's firmware doesn't expose a power target. Live stats and pause/resume still work.
+                  </span>
+                </div>
               ) : (
                 <div className="h-full flex items-center justify-center opacity-20 text-xs tracking-display">
                   connecting
