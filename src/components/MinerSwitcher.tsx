@@ -7,7 +7,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Radar, Loader2, Check } from "lucide-react";
+import { Radar, Loader2, Check, Plus } from "lucide-react";
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
 import { displayStatus, statusLabel, type DisplayStatus } from "@/lib/status";
 
 // Status colours, used identically for the trigger dot and every list dot so
@@ -82,6 +84,10 @@ export function MinerSwitcher() {
   const select = useMiners((s) => s.select);
   const scan = useMiners((s) => s.scan);
   const scanning = useMiners((s) => s.scanning);
+  const addManual = useMiners((s) => s.addManual);
+  const [manual, setManual] = useState("");
+  const [manualMsg, setManualMsg] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const liveMode = useMiners((s) => s.liveMode);
 
   const current = miners.find((m) => m.id === selectedId) ?? miners[0];
@@ -152,6 +158,52 @@ export function MinerSwitcher() {
           );
         })}
         {miners.length > 0 && <DropdownMenuSeparator />}
+        <form
+          className="flex items-center gap-1 px-2 py-1.5"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const v = manual.trim();
+            if (!v || adding) return;
+            setAdding(true);
+            setManualMsg(null);
+            const result = await addManual(v);
+            setAdding(false);
+            if (result === "added" || result === "scanned") {
+              setManual("");
+              setManualMsg(result === "added" ? "Miner added" : "Scan done");
+            } else if (result === "notfound") {
+              setManualMsg("No miner answered on that IP");
+            } else {
+              setManualMsg("Enter an IP (192.168.1.50) or CIDR (10.1.0.0/16)");
+            }
+          }}
+        >
+          <Input
+            value={manual}
+            onChange={(e) => setManual(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Add IP or subnet (10.1.0.0/16)"
+            className="h-7 text-xs"
+            aria-label="Add miner by IP or scan a subnet"
+          />
+          <button
+            type="submit"
+            disabled={adding}
+            className="shrink-0 rounded-sm p-1.5 text-muted-foreground hover:bg-secondary/60 hover:text-foreground disabled:opacity-50"
+            aria-label="Add miner or scan subnet"
+          >
+            {adding ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Plus className="h-3.5 w-3.5" />
+            )}
+          </button>
+        </form>
+        {manualMsg && (
+          <div className="px-3 pb-1 text-[10px] text-muted-foreground">{manualMsg}</div>
+        )}
         <DropdownMenuItem
           onClick={(e) => {
             e.preventDefault();

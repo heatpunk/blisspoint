@@ -112,10 +112,10 @@ export async function proxyHealthy(): Promise<boolean> {
   }
 }
 
-export async function scanLAN(subnet: string): Promise<DiscoveredMiner[]> {
+export async function scanLAN(subnet: string, timeoutMs = 300_000): Promise<DiscoveredMiner[]> {
   try {
     const res = await fetch(`/api/scan?subnet=${encodeURIComponent(subnet)}`, {
-      signal: AbortSignal.timeout(90_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) return [];
     const data = await res.json();
