@@ -12,6 +12,10 @@ import { Button } from "@/components/ui/button";
 
 export function PasswordDialog() {
   const pwPrompt = useMiners((s) => s.pwPrompt);
+  const pwError = useMiners((s) => s.pwError);
+  const target = useMiners((s) =>
+    pwPrompt ? s.miners.find((m) => m.id === pwPrompt.minerId) : undefined
+  );
   const submit = useMiners((s) => s.submitMinerPassword);
   const dismiss = useMiners((s) => s.dismissPwPrompt);
   const [pw, setPw] = useState("");
@@ -32,8 +36,13 @@ export function PasswordDialog() {
             Miner password
           </DialogTitle>
           <DialogDescription className="text-xs">
+            {target && (
+              <span className="mb-1 block font-medium text-foreground">
+                {target.config.name} — {target.ip}
+              </span>
+            )}
             {pwPrompt?.reason === "read"
-              ? "This miner needs its password to read the power target. Enter its BraiinsOS+ password (username: root). It is stored only on this device."
+              ? "This miner needs its password to read its data. Enter its BraiinsOS+ password (username: root). It is stored only on this device."
               : pwPrompt?.reason === "power"
               ? "This miner requires a password to set the power target. Enter its BraiinsOS+ password (username: root). It is stored only on this device."
               : "This miner requires a password for control. Enter its BraiinsOS+ password (username: root). It is stored only on this device."}
@@ -51,6 +60,9 @@ export function PasswordDialog() {
             autoComplete="current-password"
             className="font-readout"
           />
+          {pwError && (
+            <p className="text-xs text-destructive">{pwError}</p>
+          )}
           <Button type="submit" size="sm" className="w-full text-xs">
             Connect
           </Button>

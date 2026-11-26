@@ -55,6 +55,8 @@ interface State {
    *  power target, or committing a new power target. `paused` only applies to
    *  control prompts. */
   pwPrompt: { minerId: string; reason: "control" | "read" | "power"; paused?: boolean } | null;
+  /** shown inside the password dialog when the last attempt failed */
+  pwError: string | null;
   /** miners whose password prompt the user dismissed this session — don't nag */
   pwDismissed: Record<string, boolean>;
   /** optimistic pause/resume per miner for instant button feedback */
@@ -107,6 +109,7 @@ export const useMiners = create<State>()(
       scanning: false,
       liveMode: false,
       pwPrompt: null,
+      pwError: null,
       pwDismissed: {},
       intents: {},
 
@@ -137,7 +140,7 @@ export const useMiners = create<State>()(
         if (!m || m.config.powerTarget <= 0) return;
         const res = await setMinerPowerTarget(m.ip, m.config.powerTarget);
         if (res.needPassword) {
-          set({ pwPrompt: { minerId: id, reason: "power" } });
+          set({ pwPrompt: { minerId: id, reason: "power" }, pwError: null });
         }
       },
 
@@ -174,7 +177,7 @@ export const useMiners = create<State>()(
         }));
         const res = await setMinerPaused(m.ip, desiredPaused);
         if (res.needPassword) {
-          set((s) => { const i = { ...s.intents }; delete i[id]; return { intents: i, pwPrompt: { minerId: id, reason: "control", paused: desiredPaused } }; });
+          set((s) => { const i = { ...s.intents }; delete i[id]; return { intents: i, pwPrompt: { minerId: id, reason: "control", paused: desiredPaused }, pwError: null }; });
         } else if (!res.ok) {
           set((s) => { const i = { ...s.intents }; delete i[id]; return { intents: i }; });
         }
@@ -190,13 +193,18 @@ export const useMiners = create<State>()(
         // The server stores the credential encrypted; the browser keeps only the
         // placeholder, and every control call is finished server-side.
         const stored = await saveMinerPassword(target.ip, pw);
-        const kept = stored ? STORED_PASSWORD : pw;
+        if (!stored) {
+          set({ pwError: "Couldn't save the password on this device. The miner is not in Blisspoint's server state." });
+          return;
+        }
+        const kept = STORED_PASSWORD;
         // Store the password and clear any prior dismissal for this miner.
         set((s) => {
           const dismissed = { ...s.pwDismissed };
           delete dismissed[minerId];
           return {
             pwPrompt: null,
+            pwError: null,
             pwDismissed: dismissed,
             miners: s.miners.map((x) =>
               x.id === minerId ? { ...x, config: { ...x.config, apiPassword: kept } } : x
@@ -207,6 +215,14 @@ export const useMiners = create<State>()(
         // "read": password only needed to read the power target — refresh now.
         if (reason === "read") {
           await get().pollLive();
+          // If the miner still refuses, the password was wrong: reopen with an error.
+          const check = await fetchMinerStats(target.ip);
+          if (check?.needPassword) {
+            set({
+              pwPrompt: { minerId, reason: "read" },
+              pwError: "Password not accepted — check it and try again.",
+            });
+          }
           return;
         }
 
@@ -233,7 +249,7 @@ export const useMiners = create<State>()(
               ),
             }));
           } else if (res.needPassword) {
-            set({ pwPrompt: { minerId, reason: "control", paused } });
+            set({ pwPrompt: { minerId, reason: "control", paused }, pwError: null });
           }
         }
       },
@@ -241,7 +257,7 @@ export const useMiners = create<State>()(
       dismissPwPrompt: () =>
         set((s) =>
           s.pwPrompt
-            ? { pwPrompt: null, pwDismissed: { ...s.pwDismissed, [s.pwPrompt.minerId]: true } }
+            ? { pwPrompt: null, pwError: null, pwDismissed: { ...s.pwDismissed, [s.pwPrompt.minerId]: true } }
             : { pwPrompt: null }
         ),
 
@@ -272,7 +288,7 @@ export const useMiners = create<State>()(
             (f) => f.snap?.needPassword && !cur.pwDismissed[f.id] && !cur.pwPrompt
           );
           if (needy) {
-            set({ pwPrompt: { minerId: needy.id, reason: "read" } });
+            set({ pwPrompt: { minerId: needy.id, reason: "read" }, pwError: null });
           }
         }
 

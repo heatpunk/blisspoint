@@ -174,7 +174,11 @@ function storedPasswordForIp(ip) {
   const miner = state.miners.find((m) => m && m.ip === ip);
   const value = miner && miner.config ? miner.config.apiPassword : null;
   if (typeof value !== "string" || !value) return null;
-  return decryptValue(value);
+  const decrypted = decryptValue(value);
+  // A literal sentinel can end up stored if an old client synced MASKED before
+  // restoreMasked existed; treat it as absent so the user is asked again.
+  if (decrypted === MASKED) return null;
+  return decrypted;
 }
 
 function readBody(req, limit, cb) {
@@ -282,6 +286,7 @@ function handleSetPassword(req, res, ip) {
     }
     const miner = state.miners.find((m) => m && m.ip === ip);
     if (!miner) {
+      console.error("password save failed: miner not in server state:", ip);
       res.writeHead(404, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ ok: false, error: "miner not saved yet" }));
     }
