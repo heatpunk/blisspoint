@@ -81,6 +81,7 @@ function processStateObject(obj, fn) {
   const result = {};
   for (const [key, value] of Object.entries(obj)) {
     if (key === "apiPassword" && typeof value === "string") {
+      if (value === MASKED) continue;
       result[key] = fn(value);
     } else if (value && typeof value === "object") {
       result[key] = processStateObject(value, fn);
@@ -123,7 +124,18 @@ function unwrapState(s) {
 
 function readStateFile() {
   try {
-    return JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
+    const parsed = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
+    const flat = unwrapState(parsed);
+    if (flat && Array.isArray(flat.miners)) {
+      for (const m of flat.miners) {
+        const pw = m && m.config ? m.config.apiPassword : undefined;
+        if (typeof pw === "string" && (pw === MASKED || (pw.startsWith("enc:v1:") && decryptValue(pw) === MASKED))) {
+          delete m.config.apiPassword; // poisoned sentinel — drop it
+        }
+      }
+      return flat;
+    }
+    return parsed;
   } catch (e) {
     return null;
   }
@@ -159,18 +171,31 @@ function maskState(obj) {
 }
 
 /** Put the stored ciphertext back wherever the client echoed MASKED. */
+// True only if `saved` is a ciphertext we can actually use — anything that
+// decrypts to the MASKED sentinel (or the sentinel itself) is poison, not a password.
+function isUsableSaved(saved) {
+  if (typeof saved !== "string" || !saved) return false;
+  if (saved === MASKED) return false;
+  try {
+    return decryptValue(saved) !== MASKED;
+  } catch {
+    return true; // undecryptable junk, but not the sentinel — keep it rather than nuke access silently
+  }
+}
+
 function restoreMasked(incoming, stored) {
-  if (!incoming || !stored) return incoming;
-  if (!Array.isArray(incoming.miners) || !Array.isArray(stored.miners)) return incoming;
-  const byId = new Map(stored.miners.filter(Boolean).map((m) => [m.id, m]));
-  const byIp = new Map(stored.miners.filter(Boolean).map((m) => [m.ip, m]));
+  if (!Array.isArray(incoming.miners)) return incoming;
+  const storedMiners = stored && Array.isArray(stored.miners) ? stored.miners : [];
+  const byId = new Map(storedMiners.filter(Boolean).map((m) => [m.id, m]));
+  const byIp = new Map(storedMiners.filter(Boolean).map((m) => [m.ip, m]));
   for (const miner of incoming.miners) {
     if (!miner || typeof miner !== "object" || !miner.config) continue;
     const prev = byId.get(miner.id) || byIp.get(miner.ip);
     const saved = prev && prev.config ? prev.config.apiPassword : undefined;
     const sent = miner.config.apiPassword;
+    // A literal sentinel from the client must never be written back to disk.
     if (sent === MASKED || sent === undefined || sent === null) {
-      if (typeof saved === "string" && saved) miner.config.apiPassword = saved;
+      if (isUsableSaved(saved)) miner.config.apiPassword = saved;
       else delete miner.config.apiPassword;
     }
   }

@@ -27,12 +27,26 @@ const customStorage: StateStorage = {
     const local = localStorage.getItem(name);
     if (local) {
       // Server state is empty or unreadable (e.g. volume reset). Push our local
-      // copy up so server-side features (password save, control proxy) work.
-      fetch("/api/state", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: local,
-      }).catch((e) => console.error("Failed to re-sync local state to /api/state", e));
+      // copy up so server-side features (password save, control proxy) work —
+      // but strip the password placeholder; the server must never see it.
+      // The try/catch covers corrupt localStorage payloads (e.g. older builds
+      // that persisted the server envelope verbatim).
+      try {
+        const parsed = JSON.parse(local);
+        const inner = parsed && parsed.state ? parsed.state : parsed;
+        if (inner && Array.isArray(inner.miners)) {
+          for (const m of inner.miners) {
+            if (m?.config) delete m.config.apiPassword;
+          }
+        }
+        fetch("/api/state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(inner),
+        }).catch((e) => console.error("Failed to re-sync local state to /api/state", e));
+      } catch (e) {
+        console.error("Failed to parse local state for server re-sync", e);
+      }
     }
     return local;
   },
