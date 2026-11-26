@@ -30,9 +30,6 @@ export function DisplayOnlyPowerControl({ watts, paused = false }: { watts: numb
         <div className="w-32 sm:w-40 h-full max-h-none">
           <PowerSlider min={0} max={max} value={value} onChange={setDragged} onCommit={() => {}} disabled={paused} />
         </div>
-        <span className="text-[9px] tracking-display uppercase text-muted-foreground/60">
-          display only — firmware can't be tuned
-        </span>
       </div>
       <div className="flex flex-col items-end justify-center" style={{ width: 78 }}>
         <span className="text-[9px] tracking-display text-muted-foreground/70">Target</span>

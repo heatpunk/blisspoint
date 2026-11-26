@@ -5,6 +5,9 @@ import { fetchMinerStats, saveMinerPassword, scanLAN, setMinerPaused, setMinerPo
 
 const STORAGE_KEY = "blisspoint.state.v2";
 
+// Consecutive failed stats polls per miner id; online flips false only after 3.
+const pollFailures = new Map<string, number>();
+
 const customStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
     try {
@@ -243,13 +246,18 @@ export const useMiners = create<State>()(
         // "read": password only needed to read the power target — refresh now.
         if (reason === "read") {
           await get().pollLive();
-          // If the miner still refuses, the password was wrong: reopen with an error.
+          // If the miner still refuses, the password was wrong: surface the error
+          // on the (already reopened) prompt instead of opening a second one.
           const check = await fetchMinerStats(target.ip);
           if (check?.needPassword) {
-            set({
-              pwPrompt: { minerId, reason: "read" },
-              pwError: "Password not accepted — check it and try again.",
-            });
+            if (get().pwPrompt) {
+              set({ pwError: "Password not accepted — check it and try again." });
+            } else {
+              set({
+                pwPrompt: { minerId, reason: "read" },
+                pwError: "Password not accepted — check it and try again.",
+              });
+            }
           }
           return;
         }
@@ -325,8 +333,14 @@ export const useMiners = create<State>()(
           miners: s.miners.map((m) => {
             const entry = fetched.find((f) => f.id === m.id);
             const snap = entry?.snap;
-            // No response this poll → mark offline, keep last known values.
-            if (!snap) return { ...m, online: false };
+            // No response this poll: tolerate transient misses (slow proxy,
+            // miner busy) and only mark offline after 3 consecutive failures.
+            if (!snap) {
+              const fails = (pollFailures.get(m.id) ?? 0) + 1;
+              pollFailures.set(m.id, fails);
+              return fails >= 3 ? { ...m, online: false } : m;
+            }
+            pollFailures.set(m.id, 0);
             const live = snap.live;
             // Only trust board counts while actively hashing. During cool-down
             // after a power-target change, asic-rs may report misleading board
