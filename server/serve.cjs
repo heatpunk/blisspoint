@@ -111,6 +111,16 @@ function getLocalSubnet() {
   return "192.168.1";
 }
 
+// The browser persists state through zustand's persist middleware, whose
+// storage envelope is { state: {...}, version: N }. Older/newer writes may be
+// either that envelope or the bare { miners, ... } object. Normalize to the
+// flat shape everywhere server-side.
+function unwrapState(s) {
+  if (!s || typeof s !== "object" || Array.isArray(s)) return null;
+  if (s.state && typeof s.state === "object" && !Array.isArray(s.state)) return s.state;
+  return s;
+}
+
 function readStateFile() {
   try {
     return JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
@@ -169,7 +179,7 @@ function restoreMasked(incoming, stored) {
 
 /** Decrypted control password for a miner IP, or null when none is stored. */
 function storedPasswordForIp(ip) {
-  const state = readStateFile();
+  const state = unwrapState(readStateFile());
   if (!state || !Array.isArray(state.miners)) return null;
   const miner = state.miners.find((m) => m && m.ip === ip);
   const value = miner && miner.config ? miner.config.apiPassword : null;
@@ -220,7 +230,7 @@ function handleState(req, res) {
         return res.end(JSON.stringify({}));
       }
       try {
-        const parsed = JSON.parse(data);
+        const parsed = unwrapState(JSON.parse(data)) || {};
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(maskState(parsed)));
       } catch (e) {
@@ -235,7 +245,8 @@ function handleState(req, res) {
     req.on("end", () => {
       try {
         const parsed = JSON.parse(body); // validate JSON
-        const merged = restoreMasked(parsed, readStateFile());
+        const parsedFlat = unwrapState(parsed);
+        const merged = restoreMasked(parsedFlat, unwrapState(readStateFile()));
         const encrypted = processStateObject(merged, encryptValue);
         writeStateFile(encrypted, (err) => {
           if (err) {
@@ -279,7 +290,7 @@ function handleSetPassword(req, res, ip) {
       res.writeHead(400, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ ok: false, error: "password required" }));
     }
-    const state = readStateFile();
+    const state = unwrapState(readStateFile());
     if (!state || !Array.isArray(state.miners)) {
       res.writeHead(404, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ ok: false, error: "miner not saved yet" }));

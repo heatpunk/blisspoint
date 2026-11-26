@@ -12,7 +12,10 @@ const customStorage: StateStorage = {
       if (res.ok) {
         const data = await res.json();
         if (data && typeof data === "object" && Object.keys(data).length > 0) {
-          return JSON.stringify(data);
+          // Server stores the flat { miners, ... } shape; zustand's persist
+          // middleware expects its { state, version } envelope.
+          const isEnvelope = data.state && typeof data.state === "object";
+          return JSON.stringify(isEnvelope ? data : { state: data, version: 2 });
         }
       }
     } catch (e) {
