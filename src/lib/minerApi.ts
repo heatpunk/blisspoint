@@ -23,7 +23,8 @@ export interface MinerSnapshot {
   /** explicit paused state from the miner (asic-rs is_mining); falls back to
    *  the old hashrate≈0 heuristic against proxies that predate the field */
   paused: boolean;
-  /** reserved for control flows; reads no longer require a password */
+  /** true when the firmware hid everything behind a login (e.g. BraiinsOS) and
+   *  no password is stored for this miner — UI should ask for it */
   needPassword: boolean;
 }
 

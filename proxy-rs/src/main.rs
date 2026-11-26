@@ -19,12 +19,12 @@ use std::str::FromStr;
 
 use asic_rs::MinerFactory;
 use asic_rs_core::config::tuning::TuningConfig;
-use asic_rs_core::data::miner::TuningTarget;
+use asic_rs_core::data::miner::{MinerData, TuningTarget};
 use asic_rs_core::traits::auth::MinerAuth;
 use axum::{
     Router,
     extract::{Path, Query, State},
-    http::{HeaderValue, Method, StatusCode, header},
+    http::{HeaderMap, HeaderValue, Method, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -87,6 +87,42 @@ fn bad_gateway(msg: &str) -> Response {
     err_json(StatusCode::BAD_GATEWAY, msg)
 }
 
+/// base64-free percent-decoding for the x-blisspoint-password header. serve.cjs
+/// sends encodeURIComponent(password); this undoes it. Returns None on invalid
+/// input so a mangled header just means "no credentials", never a panic.
+fn url_decode(s: &str) -> Option<String> {
+    let bytes = s.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'%' => {
+                if i + 2 > bytes.len() - 1 { return None; }
+                let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok()?;
+                let v = u8::from_str_radix(hex, 16).ok()?;
+                out.push(v);
+                i += 3;
+            }
+            b => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
+/// True when the miner reported nothing at all — signature of an auth failure
+/// on firmware that hides data until GraphQL/API login succeeds (BraiinsOS).
+fn stats_empty(data: &MinerData) -> bool {
+    let chip_has_temp = data
+        .hashboards
+        .iter()
+        .any(|b| b.outlet_chip_temperature.is_some() || b.board_temperature.is_some()
+            || b.chips.iter().any(|c| c.temperature.is_some()));
+    data.hashrate.is_none() && data.wattage.is_none() && !chip_has_temp
+}
+
 // ---------------------------------------------------------------------------
 // Route: GET /api/health
 // ---------------------------------------------------------------------------
@@ -99,7 +135,11 @@ async fn health() -> Response {
 // Route: GET /api/miners/{ip}/stats
 // ---------------------------------------------------------------------------
 
-async fn miner_stats(State(state): State<AppState>, Path(ip): Path<String>) -> Response {
+async fn miner_stats(
+    State(state): State<AppState>,
+    Path(ip): Path<String>,
+    headers: HeaderMap,
+) -> Response {
     if !state.host_re.is_match(&ip) {
         return bad_request("bad host");
     }
@@ -109,22 +149,50 @@ async fn miner_stats(State(state): State<AppState>, Path(ip): Path<String>) -> R
         Err(_) => return bad_request("invalid IP address"),
     };
 
+    // Optional password injected by serve.cjs from its encrypted state (never
+    // from the browser). Present only when the user saved one for this miner.
+    let pw = headers
+        .get("x-blisspoint-password")
+        .and_then(|v| v.to_str().ok())
+        .and_then(url_decode)
+        .filter(|p| !p.is_empty());
+
     let factory = MinerFactory::new();
-    let miner = match factory.get_miner(addr).await {
+    let mut miner = match factory.get_miner(addr).await {
         Ok(Some(m)) => m,
         Ok(None) => return bad_gateway("miner not found or not supported"),
         Err(e) => return bad_gateway(&format!("discovery error: {e}")),
     };
 
+    if let Some(p) = &pw {
+        miner.set_auth(MinerAuth::new("root", p));
+    }
+
     let data = miner.get_data().await;
     let response = map_miner_data(&data);
 
+    // Firmware that hides everything behind an API login (BraiinsOS) answers
+    // discovery fine but returns an all-null stats payload without valid
+    // credentials. Tell the UI to ask for a password instead of showing zeros.
+    // If a password was supplied and the payload is still empty, stay silent —
+    // nagging would loop forever.
+    let needs_pw = pw.is_none() && stats_empty(&data);
+
     info!(
-        "[stats] {} model=\"{}\" fullTarget={:?} boards={:?}",
-        ip, response.model, response.config.full_target, response.config.boards
+        "[stats] {} model=\"{}\" fullTarget={:?} boards={:?} auth={} empty={}",
+        ip,
+        response.model,
+        response.config.full_target,
+        response.config.boards,
+        pw.is_some(),
+        stats_empty(&data)
     );
 
-    ok_json(&response)
+    let mut body = serde_json::to_value(&response).unwrap_or_else(|_| json!({}));
+    if needs_pw {
+        body["needPassword"] = json!(true);
+    }
+    ok_json(&body)
 }
 
 // ---------------------------------------------------------------------------

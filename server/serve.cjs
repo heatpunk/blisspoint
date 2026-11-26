@@ -408,6 +408,28 @@ const server = http.createServer((req, res) => {
     if (mutating && crossOrigin(req)) { res.writeHead(403); return res.end(); }
     return handleState(req, res);
   }
+  // Miner stats/rawdata: inject the stored (encrypted) password as a header so
+  // proxy-rs can authenticate GraphQL/RPC requests. Never trust a client-sent
+  // copy of the header — it is always deleted and re-set from our own state.
+  const statsMatch = uPath.match(/^\/api\/miners\/([^/]+)\/(stats|rawdata)$/);
+  if (statsMatch && req.method === "GET") {
+    const ip = decodeURIComponent(statsMatch[1]);
+    const headers = { ...req.headers };
+    delete headers["x-blisspoint-password"];
+    delete headers["content-length"];
+    const stored = storedPasswordForIp(ip);
+    if (stored) headers["x-blisspoint-password"] = encodeURIComponent(stored);
+    const preq = http.request(new URL(req.url, PROXY), { method: "GET", headers }, (pres) => {
+      res.writeHead(pres.statusCode || 502, pres.headers);
+      pres.pipe(res);
+    });
+    preq.on("error", () => {
+      res.writeHead(502, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: "proxy down" }));
+    });
+    preq.end();
+    return;
+  }
   const pw = uPath.match(PASSWORD_RE);
   if (pw) {
     if (req.method !== "POST") { res.writeHead(405); return res.end(); }

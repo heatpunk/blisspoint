@@ -263,6 +263,18 @@ export const useMiners = create<State>()(
         );
 
         const anyLive = fetched.some((f) => f.snap != null);
+        // BraiinsOS-class firmware answers discovery but hides all stats
+        // until login; proxy flags that as needPassword. Open the password
+        // dialog once per dismissal.
+        {
+          const cur = get();
+          const needy = fetched.find(
+            (f) => f.snap?.needPassword && !cur.pwDismissed[f.id] && !cur.pwPrompt
+          );
+          if (needy) {
+            set({ pwPrompt: { minerId: needy.id, reason: "read" } });
+          }
+        }
 
         set((s) => ({
           liveMode: anyLive,
