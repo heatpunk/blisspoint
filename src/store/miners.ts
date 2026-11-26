@@ -18,7 +18,17 @@ const customStorage: StateStorage = {
     } catch (e) {
       console.error("Failed to load state from /api/state, falling back to localStorage", e);
     }
-    return localStorage.getItem(name);
+    const local = localStorage.getItem(name);
+    if (local) {
+      // Server state is empty or unreadable (e.g. volume reset). Push our local
+      // copy up so server-side features (password save, control proxy) work.
+      fetch("/api/state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: local,
+      }).catch((e) => console.error("Failed to re-sync local state to /api/state", e));
+    }
+    return local;
   },
   setItem: async (name: string, value: string): Promise<void> => {
     localStorage.setItem(name, value);
@@ -192,7 +202,22 @@ export const useMiners = create<State>()(
         if (!target) return;
         // The server stores the credential encrypted; the browser keeps only the
         // placeholder, and every control call is finished server-side.
-        const stored = await saveMinerPassword(target.ip, pw);
+        let stored = await saveMinerPassword(target.ip, pw);
+        if (!stored) {
+          // The server may have lost its state (volume reset, fresh install) while
+          // the browser kept its copy. Flush current state up and retry once.
+          try {
+            const cur = get();
+            await fetch("/api/state", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ miners: cur.miners, selectedId: cur.selectedId, theme: cur.theme }),
+            });
+          } catch (e) {
+            console.error("Failed to flush state before password save retry", e);
+          }
+          stored = await saveMinerPassword(target.ip, pw);
+        }
         if (!stored) {
           set({ pwError: "Couldn't save the password on this device. The miner is not in Blisspoint's server state." });
           return;
