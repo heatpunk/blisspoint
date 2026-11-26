@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMiners } from "@/store/miners";
 import { PowerSlider } from "@/components/PowerSlider";
+import { DisplayOnlyPowerControl } from "@/components/DisplayOnlyPowerControl";
 import { Readout } from "@/components/Readout";
 import { MinerSwitcher } from "@/components/MinerSwitcher";
 import { SettingsDialog } from "@/components/SettingsDialog";
@@ -99,55 +100,50 @@ const Index = () => {
       {/* Slider area */}
       <section className="flex-1 flex items-center justify-center px-4 sm:px-8 py-4 min-h-0">
         <div className="flex items-stretch gap-4 sm:gap-8 w-full max-w-2xl mx-auto h-[50vh]">
-          <div className="flex flex-col justify-between py-1 font-readout text-[10px] text-muted-foreground tabular-nums" style={{ width: 78 }}>
-            {miner.config.powerMax > 0 ? (
-              <>
+          {miner.config.powerMax > 0 ? (
+            <>
+              <div className="flex flex-col justify-between py-1 font-readout text-[10px] text-muted-foreground tabular-nums" style={{ width: 78 }}>
                 <span>{axis.top}</span>
                 <span>{axis.mid}</span>
                 <span>{axis.bottom}</span>
-              </>
-            ) : (
-              <span className="self-center opacity-40">—</span>
-            )}
-          </div>
-          <div className="flex-1 flex items-center justify-center">
-            <div className="w-32 sm:w-40 h-full max-h-none">
-              {miner.config.powerMax > 0 ? (
-                <PowerSlider
-                  min={miner.config.powerMin}
-                  max={miner.config.powerMax}
-                  value={miner.config.powerTarget}
-                  onChange={(v) => setPower(miner.id, v)}
-                  onCommit={() => commitPowerTarget(miner.id)}
-                  disabled={paused}
-                />
-              ) : miner.online ? (
-                <div className="h-full flex flex-col items-center justify-center gap-2 text-center px-2">
-                  <span className="text-[11px] tracking-display uppercase text-muted-foreground">
-                    No power control
-                  </span>
-                  <span className="text-[10px] leading-snug text-muted-foreground/75">
-                    This miner's firmware doesn't expose a power target. Live stats and pause/resume still work.
-                  </span>
+              </div>
+              <div className="flex-1 flex items-center justify-center">
+                <div className="w-32 sm:w-40 h-full max-h-none">
+                  <PowerSlider
+                    min={miner.config.powerMin}
+                    max={miner.config.powerMax}
+                    value={miner.config.powerTarget}
+                    onChange={(v) => setPower(miner.id, v)}
+                    onCommit={() => commitPowerTarget(miner.id)}
+                    disabled={paused}
+                  />
                 </div>
-              ) : (
-                <div className="h-full flex items-center justify-center opacity-20 text-xs tracking-display">
-                  connecting
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-col items-end justify-center" style={{ width: 78 }}>
-            <span className="text-[9px] tracking-display text-muted-foreground/70">
-              Target
-            </span>
-            <span className="font-readout text-xl sm:text-2xl font-light leading-none mt-1.5 tabular-nums">
-              {miner.config.powerMax > 0 ? Math.round(displayTarget) : "—"}
-            </span>
-            <span className="text-[9px] tracking-display text-muted-foreground/60 mt-1">
-              watt
-            </span>
-          </div>
+              </div>
+              <div className="flex flex-col items-end justify-center" style={{ width: 78 }}>
+                <span className="text-[9px] tracking-display text-muted-foreground/70">
+                  Target
+                </span>
+                <span className="font-readout text-xl sm:text-2xl font-light leading-none mt-1.5 tabular-nums">
+                  {Math.round(displayTarget)}
+                </span>
+                <span className="text-[9px] tracking-display text-muted-foreground/60 mt-1">
+                  watt
+                </span>
+              </div>
+            </>
+          ) : miner.online ? (
+            <DisplayOnlyPowerControl watts={miner.live.watts} paused={paused} />
+          ) : (
+            <>
+              <div className="flex flex-col justify-between py-1 font-readout text-[10px] text-muted-foreground tabular-nums" style={{ width: 78 }}>
+                <span className="self-center opacity-40">—</span>
+              </div>
+              <div className="flex-1 flex items-center justify-center">
+                <div className="opacity-20 text-xs tracking-display">connecting</div>
+              </div>
+              <div style={{ width: 78 }} />
+            </>
+          )}
         </div>
       </section>
 
