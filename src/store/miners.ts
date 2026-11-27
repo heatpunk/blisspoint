@@ -5,6 +5,9 @@ import { fetchMinerStats, saveMinerPassword, scanLAN, setMinerPaused, setMinerPo
 
 const STORAGE_KEY = "blisspoint.state.v2";
 
+// Consecutive failed stats polls per miner id; online flips false only after 3.
+const pollFailures = new Map<string, number>();
+
 const customStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
     try {
@@ -12,13 +15,40 @@ const customStorage: StateStorage = {
       if (res.ok) {
         const data = await res.json();
         if (data && typeof data === "object" && Object.keys(data).length > 0) {
-          return JSON.stringify(data);
+          // Server stores the flat { miners, ... } shape; zustand's persist
+          // middleware expects its { state, version } envelope.
+          const isEnvelope = data.state && typeof data.state === "object";
+          return JSON.stringify(isEnvelope ? data : { state: data, version: 2 });
         }
       }
     } catch (e) {
       console.error("Failed to load state from /api/state, falling back to localStorage", e);
     }
-    return localStorage.getItem(name);
+    const local = localStorage.getItem(name);
+    if (local) {
+      // Server state is empty or unreadable (e.g. volume reset). Push our local
+      // copy up so server-side features (password save, control proxy) work —
+      // but strip the password placeholder; the server must never see it.
+      // The try/catch covers corrupt localStorage payloads (e.g. older builds
+      // that persisted the server envelope verbatim).
+      try {
+        const parsed = JSON.parse(local);
+        const inner = parsed && parsed.state ? parsed.state : parsed;
+        if (inner && Array.isArray(inner.miners)) {
+          for (const m of inner.miners) {
+            if (m?.config) delete m.config.apiPassword;
+          }
+        }
+        fetch("/api/state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(inner),
+        }).catch((e) => console.error("Failed to re-sync local state to /api/state", e));
+      } catch (e) {
+        console.error("Failed to parse local state for server re-sync", e);
+      }
+    }
+    return local;
   },
   setItem: async (name: string, value: string): Promise<void> => {
     localStorage.setItem(name, value);
@@ -55,6 +85,8 @@ interface State {
    *  power target, or committing a new power target. `paused` only applies to
    *  control prompts. */
   pwPrompt: { minerId: string; reason: "control" | "read" | "power"; paused?: boolean } | null;
+  /** shown inside the password dialog when the last attempt failed */
+  pwError: string | null;
   /** miners whose password prompt the user dismissed this session — don't nag */
   pwDismissed: Record<string, boolean>;
   /** optimistic pause/resume per miner for instant button feedback */
@@ -74,7 +106,7 @@ interface State {
   scan: () => Promise<void>;
   /** Add a miner by IP, or scan an arbitrary CIDR, from manual input.
    *  Returns a short status code for the UI. */
-  addManual: (input: string) => Promise<"added" | "scanned" | "notfound" | "invalid">;
+  addManual: (input: string) => Promise<"added" | "scanned" | "notfound" | "invalid" | "failed" | "exists">;
   /** Poll live data from the real miner API via the local proxy */
   pollLive: () => Promise<void>;
   /** Smooth animation tick (1 s) — lerps toward current target/live values */
@@ -82,9 +114,9 @@ interface State {
 }
 
 
-function toMiner(d: { ip: string; model?: string; live: { th: number; watts?: number; chipTemp?: number; fanSpeed?: number } }, i: number): Miner {
+function toMiner(d: { ip: string; model?: string; live: { th: number; watts?: number; chipTemp?: number; fanSpeed?: number } }): Miner {
   return {
-    id: `disc-${Date.now()}-${i}`,
+    id: globalThis.crypto?.randomUUID?.() ?? `disc-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     ip: d.ip,
     model: d.model ?? "Unknown",
     status: "mining" as const,
@@ -107,6 +139,7 @@ export const useMiners = create<State>()(
       scanning: false,
       liveMode: false,
       pwPrompt: null,
+      pwError: null,
       pwDismissed: {},
       intents: {},
 
@@ -137,7 +170,7 @@ export const useMiners = create<State>()(
         if (!m || m.config.powerTarget <= 0) return;
         const res = await setMinerPowerTarget(m.ip, m.config.powerTarget);
         if (res.needPassword) {
-          set({ pwPrompt: { minerId: id, reason: "power" } });
+          set({ pwPrompt: { minerId: id, reason: "power" }, pwError: null });
         }
       },
 
@@ -174,7 +207,7 @@ export const useMiners = create<State>()(
         }));
         const res = await setMinerPaused(m.ip, desiredPaused);
         if (res.needPassword) {
-          set((s) => { const i = { ...s.intents }; delete i[id]; return { intents: i, pwPrompt: { minerId: id, reason: "control", paused: desiredPaused } }; });
+          set((s) => { const i = { ...s.intents }; delete i[id]; return { intents: i, pwPrompt: { minerId: id, reason: "control", paused: desiredPaused }, pwError: null }; });
         } else if (!res.ok) {
           set((s) => { const i = { ...s.intents }; delete i[id]; return { intents: i }; });
         }
@@ -189,14 +222,34 @@ export const useMiners = create<State>()(
         if (!target) return;
         // The server stores the credential encrypted; the browser keeps only the
         // placeholder, and every control call is finished server-side.
-        const stored = await saveMinerPassword(target.ip, pw);
-        const kept = stored ? STORED_PASSWORD : pw;
+        let stored = await saveMinerPassword(target.ip, pw);
+        if (!stored) {
+          // The server may have lost its state (volume reset, fresh install) while
+          // the browser kept its copy. Flush current state up and retry once.
+          try {
+            const cur = get();
+            await fetch("/api/state", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ miners: cur.miners, selectedId: cur.selectedId, theme: cur.theme }),
+            });
+          } catch (e) {
+            console.error("Failed to flush state before password save retry", e);
+          }
+          stored = await saveMinerPassword(target.ip, pw);
+        }
+        if (!stored) {
+          set({ pwError: "Couldn't save the password on this device. The miner is not in Blisspoint's server state." });
+          return;
+        }
+        const kept = STORED_PASSWORD;
         // Store the password and clear any prior dismissal for this miner.
         set((s) => {
           const dismissed = { ...s.pwDismissed };
           delete dismissed[minerId];
           return {
             pwPrompt: null,
+            pwError: null,
             pwDismissed: dismissed,
             miners: s.miners.map((x) =>
               x.id === minerId ? { ...x, config: { ...x.config, apiPassword: kept } } : x
@@ -207,6 +260,19 @@ export const useMiners = create<State>()(
         // "read": password only needed to read the power target — refresh now.
         if (reason === "read") {
           await get().pollLive();
+          // If the miner still refuses, the password was wrong: surface the error
+          // on the (already reopened) prompt instead of opening a second one.
+          const check = await fetchMinerStats(target.ip);
+          if (check?.needPassword) {
+            if (get().pwPrompt) {
+              set({ pwError: "Password not accepted — check it and try again." });
+            } else {
+              set({
+                pwPrompt: { minerId, reason: "read" },
+                pwError: "Password not accepted — check it and try again.",
+              });
+            }
+          }
           return;
         }
 
@@ -233,7 +299,7 @@ export const useMiners = create<State>()(
               ),
             }));
           } else if (res.needPassword) {
-            set({ pwPrompt: { minerId, reason: "control", paused } });
+            set({ pwPrompt: { minerId, reason: "control", paused }, pwError: null });
           }
         }
       },
@@ -241,7 +307,7 @@ export const useMiners = create<State>()(
       dismissPwPrompt: () =>
         set((s) =>
           s.pwPrompt
-            ? { pwPrompt: null, pwDismissed: { ...s.pwDismissed, [s.pwPrompt.minerId]: true } }
+            ? { pwPrompt: null, pwError: null, pwDismissed: { ...s.pwDismissed, [s.pwPrompt.minerId]: true } }
             : { pwPrompt: null }
         ),
 
@@ -263,14 +329,32 @@ export const useMiners = create<State>()(
         );
 
         const anyLive = fetched.some((f) => f.snap != null);
+        // BraiinsOS-class firmware answers discovery but hides all stats
+        // until login; proxy flags that as needPassword. Open the password
+        // dialog once per dismissal.
+        {
+          const cur = get();
+          const needy = fetched.find(
+            (f) => f.snap?.needPassword && !cur.pwDismissed[f.id] && !cur.pwPrompt
+          );
+          if (needy) {
+            set({ pwPrompt: { minerId: needy.id, reason: "read" }, pwError: null });
+          }
+        }
 
         set((s) => ({
           liveMode: anyLive,
           miners: s.miners.map((m) => {
             const entry = fetched.find((f) => f.id === m.id);
             const snap = entry?.snap;
-            // No response this poll → mark offline, keep last known values.
-            if (!snap) return { ...m, online: false };
+            // No response this poll: tolerate transient misses (slow proxy,
+            // miner busy) and only mark offline after 3 consecutive failures.
+            if (!snap) {
+              const fails = (pollFailures.get(m.id) ?? 0) + 1;
+              pollFailures.set(m.id, fails);
+              return fails >= 3 ? { ...m, online: false } : m;
+            }
+            pollFailures.set(m.id, 0);
             const live = snap.live;
             // Only trust board counts while actively hashing. During cool-down
             // after a power-target change, asic-rs may report misleading board
@@ -370,15 +454,15 @@ export const useMiners = create<State>()(
           console.error(e);
         }
 
-        let allDiscovered: Array<{ ip: string; model?: string; live: { th: number; watts?: number; chipTemp?: number; fanSpeed?: number } }> = [];
-        for (const subnet of subnetsToScan) {
-          try {
-            const discovered = await scanLAN(subnet);
-            allDiscovered = [...allDiscovered, ...discovered];
-          } catch (e) {
-            console.error(e);
+        const subnetList = Array.from(subnetsToScan);
+        const scanResults = await Promise.allSettled(subnetList.map((subnet) => scanLAN(subnet)));
+        const allDiscovered = scanResults.flatMap((r, i) => {
+          if (r.status === "rejected") {
+            console.error(`scan of ${subnetList[i]} failed`, r.reason);
+            return [];
           }
-        }
+          return r.value;
+        });
 
         const map = new Map<string, { ip: string; model?: string; live: { th: number; watts?: number; chipTemp?: number; fanSpeed?: number } }>();
         for (const item of allDiscovered) {
@@ -392,7 +476,7 @@ export const useMiners = create<State>()(
           const existingIps = new Set(s.miners.map((m) => m.ip));
           const newMiners: Miner[] = discovered
             .filter((d) => !existingIps.has(d.ip))
-            .map((d, i) => toMiner(d, i));
+            .map((d) => toMiner(d));
           return { scanning: false, miners: [...s.miners, ...newMiners] };
         });
       },
@@ -403,33 +487,39 @@ export const useMiners = create<State>()(
         const ipRe = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
         const validOctets = (m: RegExpMatchArray) => [1, 2, 3, 4].every((i) => +m[i] <= 255);
 
+        const isPrivateV4 = (a: number, b: number) =>
+          a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
         const mCidr = v.match(cidr);
-        if (mCidr && validOctets(mCidr) && +mCidr[5] >= 8 && +mCidr[5] <= 32) {
+        if (mCidr && validOctets(mCidr)) {
+          const prefix = +mCidr[5];
+          const [a, b] = [+mCidr[1], +mCidr[2]];
+          // Cap manual scans at /21 (2048 hosts, same as the built-in scan) and
+          // require private ranges — a dropdown must never be a scan amplifier.
+          if (prefix < 21 || prefix > 32 || !isPrivateV4(a, b)) {
+            return "invalid";
+          }
           set({ scanning: true });
           try {
             const discovered = await scanLAN(v);
             set((s) => {
               const existing = new Set(s.miners.map((m) => m.ip));
-              const fresh = discovered.filter((d) => d.ip && !existing.has(d.ip)).map((d, i) => toMiner(d, i));
+              const fresh = discovered.filter((d) => d.ip && !existing.has(d.ip)).map((d) => toMiner(d));
               return { scanning: false, miners: [...s.miners, ...fresh] };
             });
             return "scanned";
           } catch {
             set({ scanning: false });
-            return "invalid";
+            return "failed";
           }
         }
 
         const mIp = v.match(ipRe);
         if (mIp && validOctets(mIp)) {
+          if (get().miners.some((m) => m.ip === v)) return "exists";
           const snap = await fetchMinerStats(v);
           if (!snap) return "notfound";
           set((s) => {
-            if (s.miners.some((m) => m.ip === v)) return {};
-            const miner = toMiner(
-              { ip: v, live: snap.live },
-              0
-            );
+            const miner = toMiner({ ip: v, live: snap.live });
             return {
               miners: [...s.miners, miner],
               selectedId: s.selectedId ?? miner.id,

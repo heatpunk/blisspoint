@@ -81,6 +81,7 @@ function processStateObject(obj, fn) {
   const result = {};
   for (const [key, value] of Object.entries(obj)) {
     if (key === "apiPassword" && typeof value === "string") {
+      if (value === MASKED) continue;
       result[key] = fn(value);
     } else if (value && typeof value === "object") {
       result[key] = processStateObject(value, fn);
@@ -111,9 +112,30 @@ function getLocalSubnet() {
   return "192.168.1";
 }
 
+// The browser persists state through zustand's persist middleware, whose
+// storage envelope is { state: {...}, version: N }. Older/newer writes may be
+// either that envelope or the bare { miners, ... } object. Normalize to the
+// flat shape everywhere server-side.
+function unwrapState(s) {
+  if (!s || typeof s !== "object" || Array.isArray(s)) return null;
+  if (s.state && typeof s.state === "object" && !Array.isArray(s.state)) return s.state;
+  return s;
+}
+
 function readStateFile() {
   try {
-    return JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
+    const parsed = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
+    const flat = unwrapState(parsed);
+    if (flat && Array.isArray(flat.miners)) {
+      for (const m of flat.miners) {
+        const pw = m && m.config ? m.config.apiPassword : undefined;
+        if (typeof pw === "string" && (pw === MASKED || (pw.startsWith("enc:v1:") && decryptValue(pw) === MASKED))) {
+          delete m.config.apiPassword; // poisoned sentinel — drop it
+        }
+      }
+      return flat;
+    }
+    return parsed;
   } catch (e) {
     return null;
   }
@@ -149,18 +171,31 @@ function maskState(obj) {
 }
 
 /** Put the stored ciphertext back wherever the client echoed MASKED. */
+// True only if `saved` is a ciphertext we can actually use — anything that
+// decrypts to the MASKED sentinel (or the sentinel itself) is poison, not a password.
+function isUsableSaved(saved) {
+  if (typeof saved !== "string" || !saved) return false;
+  if (saved === MASKED) return false;
+  try {
+    return decryptValue(saved) !== MASKED;
+  } catch {
+    return true; // undecryptable junk, but not the sentinel — keep it rather than nuke access silently
+  }
+}
+
 function restoreMasked(incoming, stored) {
-  if (!incoming || !stored) return incoming;
-  if (!Array.isArray(incoming.miners) || !Array.isArray(stored.miners)) return incoming;
-  const byId = new Map(stored.miners.filter(Boolean).map((m) => [m.id, m]));
-  const byIp = new Map(stored.miners.filter(Boolean).map((m) => [m.ip, m]));
+  if (!Array.isArray(incoming.miners)) return incoming;
+  const storedMiners = stored && Array.isArray(stored.miners) ? stored.miners : [];
+  const byId = new Map(storedMiners.filter(Boolean).map((m) => [m.id, m]));
+  const byIp = new Map(storedMiners.filter(Boolean).map((m) => [m.ip, m]));
   for (const miner of incoming.miners) {
     if (!miner || typeof miner !== "object" || !miner.config) continue;
     const prev = byId.get(miner.id) || byIp.get(miner.ip);
     const saved = prev && prev.config ? prev.config.apiPassword : undefined;
     const sent = miner.config.apiPassword;
+    // A literal sentinel from the client must never be written back to disk.
     if (sent === MASKED || sent === undefined || sent === null) {
-      if (typeof saved === "string" && saved) miner.config.apiPassword = saved;
+      if (isUsableSaved(saved)) miner.config.apiPassword = saved;
       else delete miner.config.apiPassword;
     }
   }
@@ -169,12 +204,16 @@ function restoreMasked(incoming, stored) {
 
 /** Decrypted control password for a miner IP, or null when none is stored. */
 function storedPasswordForIp(ip) {
-  const state = readStateFile();
+  const state = unwrapState(readStateFile());
   if (!state || !Array.isArray(state.miners)) return null;
   const miner = state.miners.find((m) => m && m.ip === ip);
   const value = miner && miner.config ? miner.config.apiPassword : null;
   if (typeof value !== "string" || !value) return null;
-  return decryptValue(value);
+  const decrypted = decryptValue(value);
+  // A literal sentinel can end up stored if an old client synced MASKED before
+  // restoreMasked existed; treat it as absent so the user is asked again.
+  if (decrypted === MASKED) return null;
+  return decrypted;
 }
 
 function readBody(req, limit, cb) {
@@ -216,7 +255,7 @@ function handleState(req, res) {
         return res.end(JSON.stringify({}));
       }
       try {
-        const parsed = JSON.parse(data);
+        const parsed = unwrapState(JSON.parse(data)) || {};
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(maskState(parsed)));
       } catch (e) {
@@ -231,7 +270,8 @@ function handleState(req, res) {
     req.on("end", () => {
       try {
         const parsed = JSON.parse(body); // validate JSON
-        const merged = restoreMasked(parsed, readStateFile());
+        const parsedFlat = unwrapState(parsed);
+        const merged = restoreMasked(parsedFlat, unwrapState(readStateFile()));
         const encrypted = processStateObject(merged, encryptValue);
         writeStateFile(encrypted, (err) => {
           if (err) {
@@ -275,13 +315,14 @@ function handleSetPassword(req, res, ip) {
       res.writeHead(400, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ ok: false, error: "password required" }));
     }
-    const state = readStateFile();
+    const state = unwrapState(readStateFile());
     if (!state || !Array.isArray(state.miners)) {
       res.writeHead(404, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ ok: false, error: "miner not saved yet" }));
     }
     const miner = state.miners.find((m) => m && m.ip === ip);
     if (!miner) {
+      console.error("password save failed: miner not in server state:", ip);
       res.writeHead(404, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ ok: false, error: "miner not saved yet" }));
     }
@@ -407,6 +448,28 @@ const server = http.createServer((req, res) => {
   if (uPath === "/api/state") {
     if (mutating && crossOrigin(req)) { res.writeHead(403); return res.end(); }
     return handleState(req, res);
+  }
+  // Miner stats/rawdata: inject the stored (encrypted) password as a header so
+  // proxy-rs can authenticate GraphQL/RPC requests. Never trust a client-sent
+  // copy of the header — it is always deleted and re-set from our own state.
+  const statsMatch = uPath.match(/^\/api\/miners\/([^/]+)\/(stats|rawdata)$/);
+  if (statsMatch && req.method === "GET") {
+    const ip = decodeURIComponent(statsMatch[1]);
+    const headers = { ...req.headers };
+    delete headers["x-blisspoint-password"];
+    delete headers["content-length"];
+    const stored = storedPasswordForIp(ip);
+    if (stored) headers["x-blisspoint-password"] = encodeURIComponent(stored);
+    const preq = http.request(new URL(req.url, PROXY), { method: "GET", headers }, (pres) => {
+      res.writeHead(pres.statusCode || 502, pres.headers);
+      pres.pipe(res);
+    });
+    preq.on("error", () => {
+      res.writeHead(502, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: "proxy down" }));
+    });
+    preq.end();
+    return;
   }
   const pw = uPath.match(PASSWORD_RE);
   if (pw) {

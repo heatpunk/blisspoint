@@ -167,15 +167,25 @@ export function MinerSwitcher() {
             if (!v || adding) return;
             setAdding(true);
             setManualMsg(null);
-            const result = await addManual(v);
-            setAdding(false);
+            let result: string;
+            try {
+              result = await addManual(v);
+            } catch {
+              result = "failed";
+            } finally {
+              setAdding(false);
+            }
             if (result === "added" || result === "scanned") {
               setManual("");
               setManualMsg(result === "added" ? "Miner added" : "Scan done");
+            } else if (result === "exists") {
+              setManualMsg("Already in the list");
             } else if (result === "notfound") {
               setManualMsg("No miner answered on that IP");
+            } else if (result === "failed") {
+              setManualMsg("Scan failed — check the network and try again");
             } else {
-              setManualMsg("Enter an IP (192.168.1.50) or CIDR (10.1.0.0/16)");
+              setManualMsg("Private IP or CIDR (/21 or tighter, e.g. 10.1.0.0/24)");
             }
           }}
         >
@@ -184,7 +194,7 @@ export function MinerSwitcher() {
             onChange={(e) => setManual(e.target.value)}
             onKeyDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
-            placeholder="Add IP or subnet (10.1.0.0/16)"
+            placeholder="Add IP or subnet (10.1.0.0/24)"
             className="h-7 text-xs"
             aria-label="Add miner by IP or scan a subnet"
           />
